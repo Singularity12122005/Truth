@@ -34,6 +34,7 @@
       background: #f7f7f7; 
       border-top: 1px solid #e0e0e0; 
       display: flex;
+      flex-wrap: wrap;
       gap: 6px;
       align-items: center;
     }
@@ -50,6 +51,7 @@
     #controls button:hover { background-color: #f0f0f0; }
     #controls button:active { background-color: #e0e0e0; box-shadow: inset 0 1px 3px rgba(0,0,0,0.1); }
     #controls button:disabled { background-color: #e9e9e9; color: #999; cursor: not-allowed; }
+    #controls button.active { border-color: #0077FF; box-shadow: 0 0 5px rgba(0,119,255,0.5); }
     #right { 
       width: 350px; 
       background: var(--color-dark-bg); 
@@ -114,6 +116,7 @@
       <button id="btnCut">切除 (Cut)</button>
       <button id="btnReturn">放回 (Return)</button>
       <button id="btnInvert">翻转 (Invert)</button>
+      <button id="btnDischarge" style="display:none;">放电 (Discharge)</button>
       <button id="btnUndo">撤销 (Undo)</button>
       <button id="btnRedo">重做 (Redo)</button>
       <button id="btnNext">下一关 ▶</button>
@@ -127,7 +130,6 @@
     <div id="log" class="log"></div>
   </div>
 
-  <!-- Invert Modal HTML Structure -->
   <div id="invertModal" class="modal">
     <div class="modal-content">
       <h4>对顶点 <span id="invertVertexId" style="font-weight:bold;"></span> 执行凯普链翻转</h4>
@@ -160,7 +162,7 @@
       addVertex(id, x, y) { id = String(id); if (this.V.has(id)) throw new Error(`顶点 ${id} 已存在。`); this.V.set(id, new Vertex(id, x, y)); this.Pi.set(id, []); }
       addEdge(u, v) { u = String(u); v = String(v); if (!this.V.has(u) || !this.V.has(v)) throw new Error(`addEdge: 未知顶点 ${u} 或 ${v}`); const e = new Edge(u, v); if (this.E.some(ex => ex.equals(e))) return; this.E.push(e); this.Pi.get(u).push(v); this.Pi.get(v).push(u); }
       neighbors(id) { return this.Pi.get(String(id)) || []; }
-      degree(id) { return this.neighbors(id).length; }
+      degree(id) { return this.neighbors(id)?.length ?? 0; }
       get edges() { return this.E.map(e => [e.u, e.v]); }
       clone() { const g2 = new Graph(); for (const [id, v] of this.V.entries()) { g2.V.set(id, new Vertex(id, v.x, v.y)); g2.Pi.set(id, []); } for (const e of this.E) { g2.E.push(new Edge(e.u, e.v)); g2.Pi.get(e.u).push(e.v); g2.Pi.get(e.v).push(e.u); } return g2; }
     }
@@ -170,8 +172,8 @@
       constructor(v, adjList, posMap, prevColor) { this.v = v; this.adj = adjList.slice(); this.pos = new Map(posMap); this.prevColor = prevColor; }
     }
     class State {
-      constructor(graph) { this.G = graph; this.Phi = new Map(); for (const id of graph.V.keys()) { this.Phi.set(id, null); } this.K = []; this.hash = null; }
-      clone() { const g2 = this.G.clone(); const s2 = new State(g2); s2.Phi = new Map(this.Phi); s2.K = this.K.map(f => new StackFrame(f.v, f.adj.slice(), new Map(f.pos), f.prevColor)); s2.hash = this.hash; return s2; }
+      constructor(graph) { this.G = graph; this.Phi = new Map(); this.K = []; this.hash = null; this.chi = new Map(); for (const id of graph.V.keys()) { this.Phi.set(id, null); } }
+      clone() { const g2 = this.G.clone(); const s2 = new State(g2); s2.Phi = new Map(this.Phi); s2.K = this.K.map(f => new StackFrame(f.v, f.adj.slice(), new Map(f.pos), f.prevColor)); s2.hash = this.hash; s2.chi = new Map(this.chi); return s2; }
       isProper() { for (const [u,v] of this.G.edges) { const cu = this.Phi.get(u), cv = this.Phi.get(v); if (cu !== null && cu === cv) return false; } return true; }
       isWin() { if (!this.isProper()) return false; for (const c of this.Phi.values()) { if (c === null) return false; } return true; }
     }
@@ -181,14 +183,11 @@
     function assignColour(state, v, colourIdx) {
       const s2 = state.clone();
       if (!s2.G.V.has(v)) return [null, `顶点 ${v} 不存在。`];
-      if (s2.Phi.get(v) !== null) {
-        return [null, { type: 'RuleViolation', message: `顶点 ${v} 已被预先着色。在某些关卡中，您需要通过其他操作（如“翻转”）来为目标顶点创造着色条件，而不是直接修改预设颜色。` }];
-      }
+      if (s2.Phi.get(v) !== null) { return [null, { type: 'RuleViolation', message: `顶点 ${v} 已被预先着色。在某些关卡中，您需要通过其他操作（如“翻转”）来为目标顶点创造着色条件，而不是直接修改预设颜色。` }]; }
       s2.Phi.set(v, colourIdx);
       if (!s2.isProper()) return [null, `着色冲突：邻国颜色相同。`];
       return [s2, null];
     }
-
     function cut(state, v) {
       const s2 = state.clone();
       if (!s2.G.V.has(v)) return [null, `顶点 ${v} 不存在。`];
@@ -200,11 +199,11 @@
       s2.G.Pi.delete(v);
       const prevColor = s2.Phi.get(v);
       s2.Phi.delete(v);
+      s2.chi.delete(v);
       const frame = new StackFrame(v, neighbors, posMap, prevColor);
       s2.K.push(frame);
       return [s2, null];
     }
-
     function ret(state) {
       const s2 = state.clone();
       if (s2.K.length === 0) return [null, '栈中没有可供“放回”的顶点。'];
@@ -217,20 +216,17 @@
       } else { avgX = canvas.width / 2; avgY = canvas.height / 2; }
       s2.G.addVertex(v, avgX, avgY);
       for (const u of frame.adj) { if (s2.G.V.has(u)) { s2.G.addEdge(v, u); const arr = s2.G.Pi.get(u); arr.splice(frame.pos.get(u), 0, v); } }
-      // **CRITICAL BUG FIX**: Ensure the restored adjacency list is consistent with the current graph state.
       const consistentAdj = frame.adj.filter(neighborId => s2.G.V.has(neighborId));
       s2.G.Pi.set(v, consistentAdj);
       s2.Phi.set(v, null);
       return [s2, null];
     }
-
     function kempeChain(state, v, a, b) {
       const Q = [v], visited = new Set([v]);
       let head = 0;
       while(head < Q.length) { const cur = Q[head++]; for (const n of state.G.neighbors(cur)) { const c = state.Phi.get(n); if (!visited.has(n) && (c === a || c === b)) { visited.add(n); Q.push(n); } } }
       return visited;
     }
-
     function invert(state, v, a, b) {
       const s2 = state.clone();
       const cv = s2.Phi.get(v);
@@ -239,8 +235,18 @@
       if (a === b) return [null, '颜色 a 与 b 必须不同。'];
       const chain = kempeChain(s2, v, a, b);
       for (const id of chain) { const c = s2.Phi.get(id); if (c === a) s2.Phi.set(id, b); else if (c === b) s2.Phi.set(id, a); }
-      if (!s2.isProper()) { return [null, { type: 'RuleViolation', message: '翻转操作将导致着色冲突，操作已中止。' }]; }
+      if (!s2.isProper()) { return [null, { type: 'AttemptInvert', args: {v,a,b}, message: '翻转操作将导致着色冲突，操作已中止。' }]; }
       return [s2, null];
+    }
+    function discharge(state, u, v) {
+        const s2 = state.clone();
+        if(!s2.G.E.some(e => e.equals(new Edge(u,v)))) return [null, `顶点 ${u} 和 ${v} 不是邻居。`];
+        const chargeU = s2.chi.get(u) || 0;
+        if(chargeU <= 0) return [null, `放电点 ${u} 的电荷必须为正。`];
+        const chargeV = s2.chi.get(v) || 0;
+        s2.chi.set(u, chargeU - 1);
+        s2.chi.set(v, chargeV + 1);
+        return [s2, null];
     }
 
     // --- engine/level.js ---
@@ -257,29 +263,33 @@
     const buildL3L4Graph = () => { const g = new Graph(); g.addVertex('X', 250, 200); const ring = [['A', 150, 100, 0], ['B', 350, 100, 1], ['C', 400, 250, 2], ['D', 250, 350, 3], ['E', 100, 250, 0]]; ring.forEach(([id,x,y]) => g.addVertex(id, x, y)); for (let i = 0; i < ring.length - 1; i++) { g.addEdge(ring[i][0], ring[i + 1][0]); } ring.forEach(([id]) => g.addEdge('X', id)); const s = new State(g); ring.forEach(([id, , , col]) => s.Phi.set(id, col)); return s; };
     registerLevel(new Level( 'L3: 五邻国情形 - 寻找正确的凯普链', '这是证明中的一个典型场景。中心点 X 有五个邻居，但邻居只用了四种颜色，因为顶点 A 和 E 颜色相同（金色）。这导致 X 仍然没有可用颜色。此时，关键在于选择正确的颜色对来构造凯普链。请观察，哪条凯普链可以断开 A 和 E 的颜色连接，从而为 X 腾出空间？提示：请对从 A 或 E 出发的 (金/红) 链进行翻转。', buildL3L4Graph, (state, traces) => { if (!state.isWin()) return false; const didInvert02 = traces.some(r => r.op === 'Invert' && (r.args.v === 'A' || r.args.v === 'E') && ((r.args.a === 0 && r.args.b === 2) || (r.args.a === 2 && r.args.b === 0))); if (!didInvert02) return false; return traces.some(r => r.op === 'Assign' && r.args.v === 'X' && r.args.c === 0); } ));
     registerLevel(new Level( 'L4: 连锁翻转 - 复杂的局面', '真实的证明比单一凯普链更复杂。有时，一次翻转是为了给下一次翻转创造条件。在这个关卡中，你无法一次性为 X 腾出颜色。你需要先执行一次翻转，改变局面，然后再执行第二次翻转，最终才能解决问题。这体现了证明中处理复杂构型时所需的策略深度。请按顺序执行两次指定的翻转操作。', buildL3L4Graph, (state, traces) => { if (!state.isWin()) return false; const idx1 = traces.findIndex(r => r.op === 'Invert' && (r.args.v === 'A' || r.args.v === 'E') && ((r.args.a === 0 && r.args.b === 2) || (r.args.a === 2 && r.args.b === 0))); if (idx1 < 0) return false; const idx2 = traces.findIndex(r => r.op === 'Invert' && r.args.v === 'C' && ((r.args.a === 2 && r.args.b === 3) || (r.args.a === 3 && r.args.b === 2))); if (idx2 < 0 || idx2 <= idx1) return false; return traces.findIndex(r => r.op === 'Assign' && r.args.v === 'X' && r.args.c === 0) > idx2; } ));
+    registerLevel(new Level( 'L5: Kempe 的反例', '这是 Kempe 最初证明中的漏洞。此图（Fritsch 反例）本身可四色，但对顶点 6 执行一次特定的凯普链翻转 (金/红)，会意外地导致顶点 1 和 3 颜色冲突。您的任务是：触发这次失败的翻转，亲眼见证 Kempe 论证的百年““bug”。', () => { const g = new Graph(); const V = ['1','2','3','4','5','6']; const P = [[250,50],[150,150],[250,250],[350,250],[350,150],[280,170]]; V.forEach((v,i)=>g.addVertex(v,P[i][0],P[i][1])); const E = [['1','2'],['2','3'],['3','4'],['4','5'],['5','1'],['6','1'],['6','3'],['6','5']]; E.forEach(e=>g.addEdge(e[0],e[1])); const s = new State(g); const PHI = {'1':0,'2':1,'3':2,'4':0,'5':1,'6':3}; for(const id in PHI) s.Phi.set(id, PHI[id]); return s; }, (s, traces) => traces.some(r => r.op === 'AttemptInvert' && r.args.v === '6' && ((r.args.a === 0 && r.args.b === 2)||(r.args.a === 2 && r.args.b === 0))) ));
+    registerLevel(new Level( 'L6: Birkhoff 菱形', 'Birkhoff 菱形是一个典型的“可约构型”。这意味着，任何包含它的地图，其四色性都等价于将这个菱形替换为一个更简单结构后的地图的四色性。请您通过“切除”中心点 x，为剩下的部分着色，再“放回”x 并完成着色，来亲手证明它的可约性。', () => { const g = new Graph(); g.addVertex('x',250,200); g.addVertex('a',150,100); g.addVertex('b',350,100); g.addVertex('c',250,300); g.addVertex('d',100,300); const E = [['x','a'],['x','b'],['a','c'],['b','c'],['c','d'],['d','a']]; E.forEach(e=>g.addEdge(e[0],e[1])); return new State(g); }, (s, traces) => s.isWin() && traces.some(r => r.op === 'Cut' && r.args.v === 'x') && traces.some(r => r.op === 'Return') ));
+    registerLevel(new Level( 'L7: 放电法模拟', '放电法是最终证明的核心。我们将每个顶点视为带电荷的粒子，初始电荷 χ(v) = 6 - deg(v)。目标是通过在邻点间转移电荷（正电荷点可以给邻居“放电”），最终使所有顶点的电荷都 ≥ 0。欧拉公式保证总电荷守恒为 12。请点击“放电”按钮，然后依次点击放电点和接收点来转移电荷。', () => { const g = new Graph(); const n=7; for(let i=0;i<n;i++){ const angle=2*Math.PI*i/n; g.addVertex(i, 250+150*Math.cos(angle), 200+150*Math.sin(angle)); } for(let i=0;i<n;i++){ g.addEdge(i, (i+1)%n); if(i<n-2) g.addEdge(i, (i+2)%n); } const s = new State(g); for (const v of g.V.keys()){ s.chi.set(v, 6 - g.degree(v)); } return s; }, (s) => { if(s.chi.size === 0) return false; let sum=0; for (const v of s.chi.values()){ if(v < 0) return false; sum+=v; } return sum === 12; } ));
+    registerLevel(new Level( 'L8: 不可避免集 (概念)', '最终的计算机证明，本质上是找到一个“不可避免集”——一个包含约1500种可约构型的集合，并证明任何地图都必然包含其中至少一个。本关是这一宏伟思想的简化体验。图中包含一个Birkhoff菱形。请依次点击构成该菱形的5个顶点，系统识别后，您需要依次将它们Cut掉，完成归约。', () => { const g = new Graph(); g.addVertex('x',150,120); g.addVertex('a',50,50); g.addVertex('b',250,50); g.addVertex('c',150,220); g.addVertex('d',50,220); const E1 = [['x','a'],['x','b'],['a','c'],['b','c'],['c','d'],['d','a']]; E1.forEach(e=>g.addEdge(e[0],e[1])); g.addVertex('e',350,150); g.addVertex('f',250,250); g.addEdge('b','e'); g.addEdge('c','f'); g.addEdge('e','f'); return new State(g); }, (s) => s.G.V.size === 0 ));
 
     // --- ui/renderer.js ---
     function bufferToHex(buf) { return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2,'0')).join(''); }
-    async function calculateStateHash(state) { const canonicalPi = Array.from(state.G.Pi.entries()).sort((a,b)=>String(a[0]).localeCompare(String(b[0]))).map(([key,arr])=>[key, [...arr].sort((u,v)=>String(u).localeCompare(String(v)))]); const canonicalEdges = state.G.edges.map(([u,v])=> { const a=String(u), b=String(v); return a<b ? [a,b] : [b,a]; }).sort((e1,e2)=> { const c = String(e1[0]).localeCompare(String(e2[0])); return c!==0 ? c : String(e1[1]).localeCompare(String(e2[1])); }); const canonicalPhi = Array.from(state.Phi.entries()).sort((a,b)=>String(a[0]).localeCompare(String(b[0]))); const obj = { graphPi: canonicalPi, graphEdges: canonicalEdges, coloringPhi: canonicalPhi }; const str = JSON.stringify(obj); const data = new TextEncoder().encode(str); const hashBuf = await crypto.subtle.digest('SHA-256', data); return bufferToHex(hashBuf); }
-    let canvas, ctx, currentLevelIndex = 0, state = null, history = [], historyIndex = -1, traces = [], uiEnabled = false, selectedVertex = null;
+    async function calculateStateHash(state) { const canonicalPi = Array.from(state.G.Pi.entries()).sort((a,b)=>String(a[0]).localeCompare(String(b[0]))).map(([key,arr])=>[key, [...arr].sort((u,v)=>String(u).localeCompare(String(v)))]); const canonicalEdges = state.G.edges.map(([u,v])=> { const a=String(u), b=String(v); return a<b ? [a,b] : [b,a]; }).sort((e1,e2)=> { const c = String(e1[0]).localeCompare(String(e2[0])); return c!==0 ? c : String(e1[1]).localeCompare(String(e2[1])); }); const canonicalPhi = Array.from(state.Phi.entries()).sort((a,b)=>String(a[0]).localeCompare(String(b[0]))); const canonicalChi = Array.from(state.chi?.entries() ?? []).sort((a,b)=>String(a[0]).localeCompare(String(b[0]))); const obj = { graphPi: canonicalPi, graphEdges: canonicalEdges, coloringPhi: canonicalPhi, charges: canonicalChi }; const str = JSON.stringify(obj); const data = new TextEncoder().encode(str); const hashBuf = await crypto.subtle.digest('SHA-256', data); return bufferToHex(hashBuf); }
+    let canvas, ctx, currentLevelIndex = 0, state = null, history = [], historyIndex = -1, traces = [], uiEnabled = false, selectedVertex = null, dischargeMode = { active: false, source: null };
     const EL = {};
-    const opMap = { 'Init': '初始化', 'Assign': '着色', 'Cut': '切除', 'Return': '放回', 'Invert': '翻转' };
+    const opMap = { 'Init': '初始化', 'Assign': '着色', 'Cut': '切除', 'Return': '放回', 'Invert': '翻转', 'AttemptInvert': '尝试翻转', 'Discharge': '放电' };
     function log(msg, cls='') { const d = document.createElement('div'); if (cls) d.classList.add(cls); d.textContent = msg; EL.log.appendChild(d); EL.log.scrollTop = EL.log.scrollHeight; }
-    function draw() { if (!ctx || !state) return; ctx.clearRect(0,0,canvas.width,canvas.height); ctx.strokeStyle = '#333'; ctx.lineWidth = 2.5; for (const [u,v] of state.G.edges) { const A = state.G.V.get(u), B = state.G.V.get(v); if (!A || !B) continue; ctx.beginPath(); ctx.moveTo(A.x,A.y); ctx.lineTo(B.x,B.y); ctx.stroke(); } for (const [id, vert] of state.G.V.entries()) { const c = state.Phi.get(id); ctx.fillStyle = (c===null ? 'var(--color-grey)' : COLORS[c]); ctx.beginPath(); ctx.arc(vert.x, vert.y, 20, 0, 2*Math.PI); ctx.fill(); ctx.lineWidth = (selectedVertex===id ? 4 : 2.5); ctx.strokeStyle = (selectedVertex===id ? '#000' : '#333'); ctx.stroke(); ctx.fillStyle = '#000'; ctx.font = 'bold 14px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(id, vert.x, vert.y); } }
+    function draw() { if (!ctx || !state) return; ctx.clearRect(0,0,canvas.width,canvas.height); ctx.strokeStyle = '#333'; ctx.lineWidth = 2.5; for (const [u,v] of state.G.edges) { const A = state.G.V.get(u), B = state.G.V.get(v); if (!A || !B) continue; ctx.beginPath(); ctx.moveTo(A.x,A.y); ctx.lineTo(B.x,B.y); ctx.stroke(); } for (const [id, vert] of state.G.V.entries()) { const isSelected = selectedVertex === id || dischargeMode.source === id; const c = state.Phi.get(id); ctx.fillStyle = (c===null ? 'var(--color-grey)' : COLORS[c]); ctx.beginPath(); ctx.arc(vert.x, vert.y, 20, 0, 2*Math.PI); ctx.fill(); ctx.lineWidth = isSelected ? 4 : 2.5; ctx.strokeStyle = isSelected ? '#000' : '#333'; ctx.stroke(); ctx.fillStyle = '#000'; ctx.font = 'bold 14px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(id, vert.x, vert.y); if(state.chi && state.chi.has(id)){ const charge = state.chi.get(id); ctx.font = '12px sans-serif'; ctx.fillStyle = charge < 0 ? 'var(--color-error)' : charge > 0 ? 'var(--color-green)' : '#000'; ctx.fillText(`χ=${charge}`, vert.x, vert.y + 25); } } }
     function hitTest(x,y) { if (!state) return null; for (const [id, v] of state.G.V.entries()) { const dx = x-v.x, dy = y-v.y; if (dx*dx+dy*dy < 20*20) return id; } return null; }
-    function renderTrace() { EL.log.innerHTML = ''; for (let i=0; i<=historyIndex; i++) { const r = traces[i]; if (!r) continue; const argsStr = JSON.stringify(r.args); const shortHash = r.post_hash.substring(0, 8); const opName = opMap[r.op] || r.op; log(`[${r.idx}] 操作: ${opName} ${argsStr} ↦ 哈希: ${shortHash}...`); } }
+    function renderTrace() { EL.log.innerHTML = ''; for (let i=0; i<=historyIndex; i++) { const r = traces[i]; if (!r) continue; const argsStr = JSON.stringify(r.args); const shortHash = r.post_hash ? r.post_hash.substring(0, 8) : '--------'; const opName = opMap[r.op] || r.op; log(`[${r.idx}] 操作: ${opName} ${argsStr} ↦ 哈希: ${shortHash}...`); } }
     function setUIEnabled(isEnabled) { uiEnabled = isEnabled; Object.values(EL.buttons).forEach(b => b.disabled = !isEnabled); EL.loading.style.display = isEnabled ? 'none' : 'inline'; }
     function layoutGraph(graph, padding = 40) { if (graph.V.size === 0) return; let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity; for (const vertex of graph.V.values()) { minX = Math.min(minX, vertex.x); minY = Math.min(minY, vertex.y); maxX = Math.max(maxX, vertex.x); maxY = Math.max(maxY, vertex.y); } const originalWidth = maxX - minX; const originalHeight = maxY - minY; const canvasWidth = canvas.width - padding * 2; const canvasHeight = canvas.height - padding * 2; const scaleX = (originalWidth > 0) ? canvasWidth / originalWidth : 1; const scaleY = (originalHeight > 0) ? canvasHeight / originalHeight : 1; const scale = Math.min(scaleX, scaleY); const newWidth = originalWidth * scale; const newHeight = originalHeight * scale; const offsetX = padding + (canvasWidth - newWidth) / 2; const offsetY = padding + (canvasHeight - newHeight) / 2; for (const vertex of graph.V.values()) { const translatedX = vertex.x - minX; const translatedY = vertex.y - minY; vertex.x = translatedX * scale + offsetX; vertex.y = translatedY * scale + offsetY; } }
-    
-    // **ASYNC REFACTOR**: Create a robust, promise-based delay helper.
     const delay = ms => new Promise(res => setTimeout(res, ms));
-
     async function loadLevel(idx) { 
         setUIEnabled(false); 
+        dischargeMode = { active: false, source: null };
+        EL.buttons.discharge.classList.remove('active');
         currentLevelIndex = idx; 
         const lvl = levels[idx]; 
         EL.levelTitle.textContent = lvl.name; 
         EL.meta.innerHTML = lvl.desc.replace(/\(([^)]+)\)/g, '<strong>($1)</strong>'); 
+        EL.buttons.discharge.style.display = lvl.name.includes("Discharging") ? 'inline-block' : 'none';
         traces = []; history = []; historyIndex = -1; 
         selectedVertex = null; 
         EL.log.innerHTML = ''; 
@@ -295,7 +305,6 @@
         renderTrace(); 
         setUIEnabled(true); 
     }
-    
     async function applyOp(opName, args) {
       if (!uiEnabled) return;
       setUIEnabled(false);
@@ -306,12 +315,26 @@
         case 'Cut':    [newState,err] = cut(state, args.v); break;
         case 'Return': [newState,err] = ret(state); break;
         case 'Invert': [newState,err] = invert(state, args.v, args.a, args.b); break;
+        case 'Discharge': [newState,err] = discharge(state, args.u, args.v); break;
       }
       if (err) {
-        if (typeof err === 'object' && err.type === 'RuleViolation') {
+        if (typeof err === 'object' && (err.type === 'RuleViolation' || err.type === 'AttemptInvert')) {
+            if (err.type === 'AttemptInvert') {
+                historyIndex++;
+                traces.push({ idx: historyIndex, op:'AttemptInvert', args: err.args, pre_hash, post_hash: pre_hash, type:'AttemptInvert' });
+                renderTrace();
+            }
             log(`[提示] ${err.message}`, 'warn');
         } else {
             log(`[错误] ${err}`, 'error');
+        }
+        const lvl = levels[currentLevelIndex];
+        if(lvl.goalFn(state, traces)) { // Check goal even on failed attempts for L5
+            log('✔️ 关卡完成！', 'success');
+            await delay(1500);
+            const nxt = (currentLevelIndex + 1) % levels.length;
+            await loadLevel(nxt);
+            return;
         }
         setUIEnabled(true);
         return;
@@ -329,11 +352,9 @@
       const lvl = levels[currentLevelIndex];
       if (lvl.goalFn(state, traces)) {
         log('✔️ 关卡完成！', 'success');
-        // **ASYNC REFACTOR**: Use the robust delay to chain the next level load.
-        // The UI remains disabled during the entire transition.
         await delay(1500);
         const nxt = (currentLevelIndex + 1) % levels.length;
-        await loadLevel(nxt); // loadLevel will re-enable the UI upon completion.
+        await loadLevel(nxt);
       } else {
         setUIEnabled(true);
       }
@@ -348,13 +369,38 @@
       const resizeCanvas = () => { canvas.width  = canvas.clientWidth; canvas.height = canvas.clientHeight; if (state) { layoutGraph(state.G, 40); draw(); } };
       window.addEventListener('resize', resizeCanvas);
       EL.log = document.getElementById('log'); EL.levelTitle = document.getElementById('levelTitle'); EL.meta = document.getElementById('meta'); EL.loading = document.getElementById('loading');
-      EL.buttons = { cut: document.getElementById('btnCut'), ret: document.getElementById('btnReturn'), invert: document.getElementById('btnInvert'), undo: document.getElementById('btnUndo'), redo: document.getElementById('btnRedo'), next: document.getElementById('btnNext'), };
+      EL.buttons = { cut: document.getElementById('btnCut'), ret: document.getElementById('btnReturn'), invert: document.getElementById('btnInvert'), discharge: document.getElementById('btnDischarge'), undo: document.getElementById('btnUndo'), redo: document.getElementById('btnRedo'), next: document.getElementById('btnNext'), };
       EL.invertModal = document.getElementById('invertModal'); EL.invertVertexId = document.getElementById('invertVertexId'); EL.invertColorSelector = document.getElementById('invertColorSelector'); EL.invertSelection = document.getElementById('invertSelection'); EL.btnInvertConfirm = document.getElementById('btnInvertConfirm'); EL.btnInvertCancel = document.getElementById('btnInvertCancel');
-      canvas.addEventListener('click', e => { if (!uiEnabled) return; const rect = canvas.getBoundingClientRect(); const id = hitTest(e.clientX - rect.left, e.clientY - rect.top); selectedVertex = (selectedVertex === id) ? null : id; draw(); });
+      canvas.addEventListener('click', e => { 
+        if (!uiEnabled) return; 
+        const rect = canvas.getBoundingClientRect(); 
+        const id = hitTest(e.clientX - rect.left, e.clientY - rect.top);
+        if (dischargeMode.active) {
+            if (id) {
+                if (!dischargeMode.source) {
+                    dischargeMode.source = id;
+                } else {
+                    applyOp('Discharge', {u: dischargeMode.source, v: id});
+                    dischargeMode = { active: false, source: null };
+                    EL.buttons.discharge.classList.remove('active');
+                }
+            }
+        } else {
+            selectedVertex = (selectedVertex === id) ? null : id;
+        }
+        draw(); 
+      });
       window.addEventListener('keydown', e => { if (!uiEnabled || e.metaKey || e.ctrlKey) return; if (/^[1-4]$/.test(e.key) && selectedVertex) { e.preventDefault(); applyOp('Assign', { v: selectedVertex, c: Number(e.key)-1 }); } });
       EL.buttons.cut.addEventListener('click', ()=> { if (selectedVertex) applyOp('Cut', { v: selectedVertex }); });
       EL.buttons.ret.addEventListener('click', ()=> applyOp('Return', {}));
       EL.buttons.invert.addEventListener('click', () => { if (selectedVertex) showInvertModal(); });
+      EL.buttons.discharge.addEventListener('click', () => {
+          dischargeMode.active = !dischargeMode.active;
+          dischargeMode.source = null;
+          selectedVertex = null;
+          EL.buttons.discharge.classList.toggle('active', dischargeMode.active);
+          draw();
+      });
       EL.buttons.undo.addEventListener('click', undo);
       EL.buttons.redo.addEventListener('click', redo);
       EL.buttons.next.addEventListener('click', ()=> { const nxt = (currentLevelIndex + 1) % levels.length; loadLevel(nxt); });
