@@ -3,118 +3,522 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1.0" />
-<title>逻辑的边界 – 修正版原型</title>
+<title>逻辑的边界 (The Boundary of Logic) - 修复原型</title>
 <style>
-:root{
- --bg:#0F1115; --canvas-bg:#111827; --text:#E5E7EB; --border:#374151;
- --accent:#3B82F6; --hl:#FBBF24; --err:#EF4444; --ok:#10B981; --gray:#4A5568;
+:root {
+  --background-color:#0F1115;
+  --canvas-bg:#111827;
+  --text-color:#E5E7EB;
+  --border-color:#374151;
+  --primary-accent:#3B82F6;
+  --highlight-accent:#FBBF24;
+  --error-accent:#EF4444;
+  --ok-accent:#10B981;
+  --neutral-gray:#4A5568;
 }
-html,body{margin:0;height:100%;display:flex;align-items:center;justify-content:center;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;background:var(--bg);color:var(--text);overflow:hidden}
-#game-container{position:relative;background:var(--canvas-bg);box-shadow:0 0 32px rgba(0,0,0,.7);border:1px solid var(--border)}
-#game-container.frozen .ui-interactive{pointer-events:none;opacity:.45}
-#game-canvas{display:block;border:1px solid var(--border);outline:none}
-#ui-panel{position:absolute;top:16px;left:16px;background:rgba(15,17,21,.9);backdrop-filter:blur(6px);border:1px solid var(--border);border-radius:10px;padding:14px 16px;display:flex;flex-direction:column;gap:10px;width:230px;user-select:none}
-#ui-panel h2{margin:0 0 6px;font-size:17px;border-bottom:1px solid var(--border);padding-bottom:6px}
-.sub-label{font-size:11px;text-transform:uppercase;color:#9CA3AF;letter-spacing:.4px;margin-top:4px}
-.color-palette{display:flex;flex-wrap:wrap;gap:6px}
-.color-palette button{width:34px;height:34px;border-radius:50%;border:2px solid var(--text);cursor:pointer;transition:transform .15s,box-shadow .15s}
-.color-palette button:hover{transform:scale(1.15)}
-.color-palette button.selected{border-color:var(--hl);box-shadow:0 0 12px var(--hl);transform:scale(1.1)}
-#op-panel{display:flex;flex-direction:column;gap:6px}
-#op-panel button{padding:6px;border-radius:6px;font-size:12px;letter-spacing:.3px;background:#1F2937;border:1px solid var(--border);color:var(--text);cursor:pointer;transition:background .18s}
-#op-panel button.active{background:var(--accent);border-color:var(--accent)}
-#op-panel button:not(:disabled):hover{background:#2563EB}
-#message-bar{position:absolute;bottom:20px;left:50%;transform:translateX(-50%);min-width:260px;max-width:78vw;padding:10px 22px;background:rgba(15,17,21,.93);backdrop-filter:blur(6px);border:1px solid var(--border);border-radius:10px;font-size:14px;text-align:center;display:flex;flex-direction:column;gap:8px}
-#message-bar.error{color:var(--err);border-color:var(--err)}
-#message-bar.success{color:var(--ok);border-color:var(--ok)}
-#next-level-btn{background:var(--ok);border:none;color:#fff;border-radius:6px;padding:6px 14px;cursor:pointer;font-size:13px}
-#history{max-height:120px;overflow:auto;background:#0B0D10;border:1px solid var(--border);border-radius:6px;padding:6px;font-size:11px;line-height:1.2;}
-#history::-webkit-scrollbar{width:6px}#history::-webkit-scrollbar-thumb{background:#1F2937;border-radius:3px}
+html,body {margin:0;padding:0;height:100%;width:100%;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;background:var(--background-color);color:var(--text-color);display:flex;align-items:center;justify-content:center;overflow:hidden;}
+#game-container {position:relative;box-shadow:0 0 30px rgba(0,0,0,.7);background:var(--canvas-bg);border:1px solid var(--border-color);}
+#game-container.frozen {pointer-events:none;}
+#game-canvas {display:block;outline:none;}
+#ui-panel {position:absolute;top:15px;left:15px;background:rgba(15,17,21,.88);backdrop-filter:blur(5px);border:1px solid var(--border-color);padding:12px 14px;border-radius:10px;min-width:220px;user-select:none;font-size:13px;}
+#ui-panel h2 {margin:0 0 8px;font-size:17px;font-weight:600;border-bottom:1px solid var(--border-color);padding-bottom:6px;}
+.section-label {margin:10px 0 4px;font-size:11px;letter-spacing:.5px;text-transform:uppercase;color:#9CA3AF;}
+.color-palette {display:flex;flex-wrap:wrap;margin:2px -4px 4px;}
+.color-palette button {width:34px;height:34px;border-radius:50%;border:2px solid var(--text-color);margin:4px;cursor:pointer;transition:transform .16s cubic-bezier(.4,0,.2,1),box-shadow .16s;position:relative;outline:none;background-clip:padding-box;}
+.color-palette button:hover {transform:scale(1.15);} 
+.color-palette button.selected {border-color:var(--highlight-accent);box-shadow:0 0 12px var(--highlight-accent);transform:scale(1.1);} 
+.color-palette button:focus-visible {box-shadow:0 0 0 3px rgba(59,130,246,.55);} 
+#operator-panel {display:flex;flex-wrap:wrap;gap:6px;margin-top:4px;}
+#operator-panel button {background:#1F2937;color:var(--text-color);border:1px solid var(--border-color);padding:4px 10px;border-radius:6px;cursor:pointer;font-size:12px;letter-spacing:.5px;transition:background .18s,box-shadow .18s,border-color .18s;}
+#operator-panel button.active {background:var(--primary-accent);border-color:var(--primary-accent);}
+#operator-panel button:disabled {opacity:.35;cursor:not-allowed;}
+#operator-panel button:not(:disabled):hover {background:#2563EB;}
+.inline-badge {display:inline-block;padding:1px 6px;background:#1F2937;border:1px solid var(--border-color);border-radius:4px;font-size:10px;margin-left:6px;}
+#message-bar {position:absolute;bottom:20px;left:50%;transform:translateX(-50%);background:rgba(15,17,21,.92);backdrop-filter:blur(6px);padding:10px 24px;border-radius:10px;border:1px solid var(--border-color);font-size:14px;max-width:760px;line-height:1.35;display:flex;align-items:center;gap:12px;}
+#message-bar.error {color:var(--error-accent);border-color:var(--error-accent);} 
+#message-bar.success {color:var(--ok-accent);border-color:var(--ok-accent);} 
+#history-panel {max-height:140px;overflow:auto;margin-top:6px;font-family:ui-monospace,monospace;font-size:11px;line-height:1.25;background:#0B0D10;border:1px solid var(--border-color);padding:6px 8px;border-radius:6px;}
+#history-panel::-webkit-scrollbar {width:8px;}#history-panel::-webkit-scrollbar-thumb {background:#1F2937;border-radius:4px;}
+.log-entry {white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:1px 0;}
+.log-entry span.op {color:var(--primary-accent);} 
+#analytics-panel {margin-top:6px;font-size:11px;color:#9CA3AF;display:grid;grid-template-columns:auto auto;column-gap:10px;row-gap:2px;}
+#modal-overlay {position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;z-index:40;}
+#modal {background:#111827;border:1px solid var(--border-color);padding:24px 28px;border-radius:12px;max-width:680px;font-size:14px;line-height:1.5;}
+#modal h3 {margin-top:0;font-size:20px;}
+#close-modal {margin-top:16px;background:#1F2937;color:var(--text-color);border:1px solid var(--border-color);padding:6px 14px;border-radius:7px;cursor:pointer;}
+#close-modal:hover {background:#374151;}
+:focus-visible {outline:2px solid var(--highlight-accent);outline-offset:2px;}
 </style>
 </head>
 <body>
-<div id="game-container">
-  <canvas id="game-canvas" tabindex="0"></canvas>
-  <div id="ui-panel" role="complementary">
-   <h2 id="level-name"></h2>
-   <div class="sub-label">颜色</div>
-   <div id="color-palette" class="color-palette ui-interactive" role="radiogroup"></div>
-   <div class="sub-label">算子</div>
-   <div id="op-panel" class="ui-interactive"></div>
-   <div class="sub-label">历史</div>
-   <div id="history"></div>
-   <button id="undo-btn" class="ui-interactive" style="margin-top:6px">撤销 (Undo)</button>
+<!-- SVG pattern defs for future direct SVG rendering (canvas uses procedural patterns) -->
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <pattern id="pattern-C1" patternUnits="userSpaceOnUse" width="8" height="8"><path d="M-2,2 l4,-4 M0,8 l8,-8 M6,10 l4,-4" stroke="#E5E7EB" stroke-width="1" fill="none"/></pattern>
+    <pattern id="pattern-C2" patternUnits="userSpaceOnUse" width="10" height="10"><circle cx="5" cy="5" r="2" fill="#E5E7EB"/></pattern>
+    <pattern id="pattern-C3" patternUnits="userSpaceOnUse" width="6" height="6"><path d="M0,6 l6,-6 M-1,1 l2,-2 M5,7 l2,-2" stroke="#E5E7EB" stroke-width="1.2" fill="none"/></pattern>
+    <pattern id="pattern-C4" patternUnits="userSpaceOnUse" width="4" height="4"><path d="M-1,2 l6,0" stroke="#E5E7EB" stroke-width="1" fill="none"/></pattern>
+  </defs>
+</svg>
+
+<div id="game-container" aria-label="四色定理交互证明原型">
+  <canvas id="game-canvas" tabindex="0" aria-label="游戏地图画布"></canvas>
+  <div id="ui-panel" role="complementary" aria-label="控制面板">
+    <h2 id="level-name"></h2>
+    <div class="section-label">颜色 (Color)</div>
+    <div id="color-palette" class="color-palette" role="radiogroup" aria-label="颜色选择"></div>
+    <div class="section-label">算子 (Operators)</div>
+    <div id="operator-panel" aria-label="可用算子"></div>
+    <div class="section-label">历史 (History)</div>
+    <div id="history-panel" aria-label="操作历史日志"></div>
+    <div class="section-label">状态 (State)</div>
+    <div id="analytics-panel"></div>
   </div>
-  <div id="message-bar" role="status"><span id="msg"></span></div>
+  <div id="message-bar" role="status" aria-live="polite"><span id="message-text"></span></div>
+</div>
+
+<div id="modal-overlay" role="dialog" aria-modal="true" aria-hidden="true">
+  <div id="modal">
+    <h3>依赖说明 (Operator Dependency)</h3>
+    <div id="modal-body"></div>
+    <button id="close-modal">关闭</button>
+  </div>
 </div>
 
 <script type="module">
-/************** SECTION 0: CONSTANTS **************/
+// =====================================================================================
+// SECTION 0: CONFIG & GLOBAL CONSTANTS
+// =====================================================================================
+const DEV_MODE = true; // 开发模式: 额外断言 & 日志
+const ENABLE_FUTURE_OPERATORS = true; // 占位: 未来启用 cut/inv 等
+
 const COLORS = Object.freeze({
-  C1:{id:'C1',hex:'#3B82F6',name:'蓝'},
-  C2:{id:'C2',hex:'#10B981',name:'绿'},
-  C3:{id:'C3',hex:'#F59E0B',name:'黄'},
-  C4:{id:'C4',hex:'#EF4444',name:'红'}
+  C1: { id:'C1', hex:'#3B82F6', name:'蓝色', patternId:'pattern-C1' },
+  C2: { id:'C2', hex:'#10B981', name:'绿色', patternId:'pattern-C2' },
+  C3: { id:'C3', hex:'#F59E0B', name:'黄色', patternId:'pattern-C3' },
+  C4: { id:'C4', hex:'#EF4444', name:'红色',  patternId:'pattern-C4' }
 });
 const COLOR_IDS = Object.keys(COLORS);
 
-/************** SECTION 1: LEVEL DATA **************/
-const LEVELS=[{
- id:'L1',name:'归纳之手',objective:'移除度≤5国家。',
- graph:{
-  vertices:[{id:0,x:.5,y:.5},{id:1,x:.5,y:.2},{id:2,x:.82,y:.6},{id:3,x:.18,y:.6},{id:4,x:.18,y:.2}],
-  countries:{100:[0,1,2,3],101:[1],[102:[2]],[103:[3]],[104:[0,4]]},
-  embedding:{100:[101,102,103],101:[100],102:[100],103:[100],104:[]}
- },
- initialColoring:{101:'C1',102:'C2',103:'C3'},
- win(state){return state.graph.countries.size===4;}
-}];
-/************** SECTION 2: STATE BUILDERS **************/
-function buildVertices(arr){return new Map(arr.map(v=>[v.id,{id:v.id,position:{x:v.x,y:v.y}}]));}
-function buildCountries(obj){return new Map(Object.entries(obj).map(([k,v])=>[+k,v]));}
-function buildEmbedding(obj){return new Map(Object.entries(obj).map(([k,v])=>[+k,v]));}
-function deriveEdges(countries){const s=new Set;for(const poly of countries.values()){for(let i=0;i<poly.length;i++){const a=poly[i],b=poly[(i+1)%poly.length];const key=(a<b)?`${a}-${b}`:`${b}-${a}`;s.add(key);}}return s;}
-function bboxForCountry(poly,vert){let mnx=1,mny=1,mxx=0,mxy=0;for(const vid of poly){const p=vert.get(vid).position;mnx=Math.min(mnx,p.x);mny=Math.min(mny,p.y);mxx=Math.max(mxx,p.x);mxy=Math.max(mxy,p.y);}return{minX:mnx,minY:mny,maxX:mxx,maxY:mxy};}
-function buildBBoxes(countries,verts){const m=new Map;for(const [cid,poly] of countries) m.set(cid,bboxForCountry(poly,verts));return m;}
-function mkState(level){const vertices=buildVertices(level.graph.vertices);const countries=buildCountries(level.graph.countries);const embedding=buildEmbedding(level.graph.embedding);const edges=deriveEdges(countries);const boxes=buildBBoxes(countries,vertices);return{level,graph:{vertices,countries,embedding,edges,boxes},coloring:new Map(Object.entries(level.initialColoring||{}).map(([k,v])=>[+k,v])),ui:{mode:'PLAY',selectedColor:'C1',msg:level.objective,error:false,op:null,cutCandidate:null},history:[]};}
-/************** SECTION 3: PURE OPERATORS **************/
-const Ops={
- isLegal(st,cid,color){for(const n of st.graph.embedding.get(cid)||[]){if(st.coloring.get(n)===color) return false;}return true;},
- snapshot(st){return{coloring:new Map(st.coloring),ui:{...st.ui}};},
- assign(st,cid){const color=st.ui.selectedColor;if(!this.isLegal(st,cid,color))return {...st,ui:{...st.ui,msg:'与邻国同色',error:true}};const nc=new Map(st.coloring);nc.set(cid,color);return{...st,coloring:nc,history:[...st.history,this.snapshot(st)],ui:{...st.ui,msg:`${cid}→${COLORS[color].name}`,error:false}};},
- computeMinDegree(st){let min=1e9,node=null;for(const [cid,neis]of st.graph.embedding){if(neis.length<min){min=neis.length;node=cid;}}return node;},
- cutPrepare(st){const target=this.computeMinDegree(st);return{...st,ui:{...st.ui,op:'CUT',cutCandidate:target,msg:`请选择国家 ${target} 虚化`,error:false}};},
- cutExec(st,cid){if(cid!==st.ui.cutCandidate)return {...st,ui:{...st.ui,msg:`需选择 ${st.ui.cutCandidate}`,error:true}};const snap=this.snapshot(st);const newCountries=new Map(st.graph.countries);newCountries.delete(cid);const newEmbedding=new Map;for(const[ id,neis]of st.graph.embedding){if(id===cid)continue;newEmbedding.set(id,neis.filter(n=>n!==cid));}
- const newEdges=deriveEdges(newCountries);const newBoxes=buildBBoxes(newCountries,st.graph.vertices);return{...st,graph:{...st.graph,countries:newCountries,embedding:newEmbedding,edges:newEdges,boxes:newBoxes},history:[...st.history,snap],ui:{mode:'PLAY',selectedColor:st.ui.selectedColor,msg:`已虚化 ${cid}`,error:false,op:null,cutCandidate:null}};},
- undo(st){if(!st.history.length)return st;const last=st.history[st.history.length-1];return{...st,coloring:last.coloring,ui:{...last.ui,msg:'已撤销',error:false},history:st.history.slice(0,-1)}}
+// Level definition schema (可扩展: prerequisites / narrative / unlockOperators)
+const level1Data = {
+  id: 'level-1.0',
+  name: '五邻之初 (5-Neighbor Start)',
+  objective: '找到一个合法的四色染色 (演示基础合法性)。',
+  graph: {
+    // 顶点 (平面嵌入: 归一化坐标)
+    vertices: [
+      { id:0, position:{x:0.50,y:0.50} },
+      { id:1, position:{x:0.50,y:0.16} },
+      { id:2, position:{x:0.81,y:0.41} },
+      { id:3, position:{x:0.68,y:0.83} },
+      { id:4, position:{x:0.31,y:0.83} },
+      { id:5, position:{x:0.18,y:0.41} }
+    ],
+    // 国家: ID -> 顶点环
+    countries: {
+      100: [1,5,0,2],
+      101: [2,0,3],
+      102: [3,0,4],
+      103: [4,0,5],
+      104: [5,1,2,3,4] // 中央复杂区
+    },
+    // 邻接(国家图的旋转系统局部): 保证对称
+    embedding: {
+      100:[103,104,101],
+      101:[100,104,102],
+      102:[101,104,103],
+      103:[102,104,100],
+      104:[100,101,102,103]
+    }
+  },
+  initialColoring: {},
+  rules: {
+    availableOperators: ['Op_assign'],
+    winCheck: 'fullProperColoring' // symbolic; mapped to function
+  }
 };
-/************** SECTION 4: RENDERER **************/
-const Renderer={
- init(canvas){this.canvas=canvas;this.ctx=canvas.getContext('2d');this.dpr=window.devicePixelRatio||1;this.resize();},
- resize(){const c=this.canvas,p=c.parentElement;const side=Math.min(p.clientWidth,p.clientHeight,800);this.logical=side;this.ctx.setTransform(1,0,0,1,0,0);c.style.width=c.style.height=side+'px';c.width=c.height=side*this.dpr;this.ctx.scale(this.dpr,this.dpr);},
- draw(st){const ctx=this.ctx,S=this.logical;ctx.clearRect(0,0,S,S);for(const[ cid,poly]of st.graph.countries){ctx.beginPath();poly.forEach((vid,i)=>{const v=st.graph.vertices.get(vid).position;const x=v.x*S,y=v.y*S;i?ctx.lineTo(x,y):ctx.moveTo(x,y);});ctx.closePath();ctx.fillStyle=st.coloring.get(cid)?COLORS[st.coloring.get(cid)].hex:'#4A5568';ctx.fill();}
- ctx.strokeStyle='#E5E7EB';ctx.lineWidth=1.4;ctx.lineJoin='round';for(const e of st.graph.edges){const[ u,v]=e.split('-').map(Number);const p1=st.graph.vertices.get(u).position,p2=st.graph.vertices.get(v).position;ctx.beginPath();ctx.moveTo(p1.x*S,p1.y*S);ctx.lineTo(p2.x*S,p2.y*S);ctx.stroke();}}
+
+// =====================================================================================
+// SECTION 1: TYPE GUARDS & VALIDATION
+// =====================================================================================
+function validateEmbedding(graph){
+  const emb = graph.embedding;
+  for(const [cid, neighbors] of emb.entries()){
+    for(const n of neighbors){
+      const r = emb.get(n);
+      console.assert(r && r.includes(cid), `Embedding asymmetry: ${cid} -> ${n} missing reverse.`);
+    }
+  }
+  if(DEV_MODE) console.log('[VALIDATE] Embedding symmetry OK.');
+}
+
+// =====================================================================================
+// SECTION 2: STATE CREATION & IMMUTABILITY HELPERS
+// =====================================================================================
+function computeCountryBoundingBoxes(verticesMap, countriesMap){
+  const boxes = new Map();
+  for(const [cid, poly] of countriesMap.entries()){
+    let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+    for(const vid of poly){
+      const p = verticesMap.get(vid).position;
+      if(p.x<minX)minX=p.x; if(p.y<minY)minY=p.y; if(p.x>maxX)maxX=p.x; if(p.y>maxY)maxY=p.y;
+    }
+    boxes.set(cid,{minX,minY,maxX,maxY});
+  }
+  return boxes;
+}
+
+function deriveEdges(countriesMap){
+  // Edge 集仅用于边界可视化 (顶点层), 格式: "u-v" with u < v
+  const edgeSet = new Set();
+  for(const poly of countriesMap.values()){
+    for(let i=0;i<poly.length;i++){
+      const a = poly[i], b = poly[(i+1)%poly.length];
+      const u = Math.min(a,b), v = Math.max(a,b);
+      edgeSet.add(`${u}-${v}`);
+    }
+  }
+  return edgeSet;
+}
+
+function createInitialState(levelData){
+  const vertices = new Map(levelData.graph.vertices.map(v=>[v.id,v]));
+  const countries = new Map(Object.entries(levelData.graph.countries).map(([k,v])=>[Number(k),v]));
+  const embedding = new Map(Object.entries(levelData.graph.embedding).map(([k,v])=>[Number(k),v]));
+  const edges = deriveEdges(countries);
+  const countryBoundingBoxes = computeCountryBoundingBoxes(vertices,countries);
+  const graph = { vertices, countries, embedding, edges, countryBoundingBoxes };
+  validateEmbedding(graph);
+  const init = {
+    version:1,
+    currentLevelId:levelData.id,
+    graph,
+    coloring:new Map(Object.entries(levelData.initialColoring).map(([k,v])=>[Number(k),v])),
+    ui:{
+      mode:'PLAY',
+      selectedColorId:COLOR_IDS[0],
+      selectedOperator:'Op_assign',
+      message:'欢迎: 请选择一个国家并应用颜色。',
+      error:false,
+      isTransitioning:false
+    },
+    operators:{
+      enabled:new Set(levelData.rules.availableOperators)
+    },
+    history:[], // stack of snapshots
+    metrics:{ steps:0, illegalMoves:0, startTime:performance.now() },
+    levelData
+  };
+  return init;
+}
+
+function cloneColoring(col){
+  return new Map(col); // shallow is enough (values are primitives)
+}
+
+function snapshotState(state){
+  // Only persist the diff-relevant parts (graph is assumed static in current level)
+  return {
+    coloring: cloneColoring(state.coloring),
+    ui:{...state.ui},
+    metrics:{...state.metrics}
+  };
+}
+
+// =====================================================================================
+// SECTION 3: GEOMETRY & PICKING
+// =====================================================================================
+function pointInBoxNorm(point, box){
+  return point.x>=box.minX && point.x<=box.maxX && point.y>=box.minY && point.y<=box.maxY;
+}
+function pointInPolygonNorm(point, polygonPoints){
+  let inside=false; const n=polygonPoints.length;
+  for(let i=0,j=n-1;i<n;j=i++){
+    const {x:xi,y:yi}=polygonPoints[i];
+    const {x:xj,y:yj}=polygonPoints[j];
+    const intersect=((yi>point.y)!==(yj>point.y)) && (point.x < (xj - xi)*(point.y - yi)/(yj - yi + 1e-12) + xi);
+    if(intersect) inside=!inside;
+  }
+  return inside;
+}
+function pickCountry(normalizedPoint,state){
+  // BVH 尚未实现; 线性扫描 + bbox filter
+  for(const [cid, box] of state.graph.countryBoundingBoxes.entries()){
+    if(!pointInBoxNorm(normalizedPoint, box)) continue;
+    const poly = state.graph.countries.get(cid).map(vid=>state.graph.vertices.get(vid).position);
+    if(pointInPolygonNorm(normalizedPoint, poly)) return cid;
+  }
+  return null;
+}
+
+// =====================================================================================
+// SECTION 4: LEGALITY & WIN CONDITIONS
+// =====================================================================================
+function isLocalLegal(state, countryId, colorId){
+  const neighbors = state.graph.embedding.get(countryId) || [];
+  for(const n of neighbors){
+    if(state.coloring.get(n) === colorId) return false;
+  }
+  return true;
+}
+const WinCheckRegistry = {
+  fullProperColoring(state){
+    // All countries colored & each local legal
+    if(state.coloring.size !== state.graph.countries.size) return false;
+    for(const cid of state.graph.countries.keys()){
+      const c = state.coloring.get(cid);
+      if(!c) return false;
+      if(!isLocalLegal(state,cid,c)) return false;
+    }
+    return true;
+  }
 };
-/************** SECTION 5: UI BUILDERS **************/
-function buildPalette(){const root=document.getElementById('color-palette');COLOR_IDS.forEach(id=>{const b=document.createElement('button');b.dataset.color=id;b.style.backgroundColor=COLORS[id].hex;b.setAttribute('role','radio');root.appendChild(b);});}
-function buildOps(){const ops=[{id:'ASSIGN',txt:'染色 (Assign)'},{id:'CUT',txt:'虚化之触 (Cut)'}];const panel=document.getElementById('op-panel');ops.forEach(o=>{const b=document.createElement('button');b.dataset.op=o.id;b.textContent=o.txt;panel.appendChild(b);});}
-/************** SECTION 6: CONTROLLER **************/
-class Game{constructor(canvas,levels){this.canvas=canvas;this.levels=levels;Renderer.init(canvas);this.load(0);}load(idx){this.idx=idx;this.state=mkState(this.levels[idx]);this.bind();this.paint();}
- bind(){// remove old listener if exists
- if(this._click){this.canvas.removeEventListener('click',this._click);}this._click=this.onClick.bind(this);this.canvas.addEventListener('click',this._click);
- document.getElementById('color-palette').onclick=e=>{if(e.target.tagName==='BUTTON'){this.state={...this.state,ui:{...this.state.ui,selectedColor:e.target.dataset.color}};this.paint();}}
- document.getElementById('undo-btn').onclick=()=>{this.state=Ops.undo(this.state);this.paint();}
- document.getElementById('op-panel').onclick=e=>{if(e.target.tagName==='BUTTON'){const op=e.target.dataset.op;if(op==='CUT')this.state=Ops.cutPrepare(this.state);this.paint();}}
- window.addEventListener('resize',()=>{Renderer.resize();this.paint();},{passive:true});}
- onClick(e){const rect=this.canvas.getBoundingClientRect();const norm={x:(e.clientX-rect.left)/rect.width,y:(e.clientY-rect.top)/rect.height};let hit=null;for(const[ cid,box]of this.state.graph.boxes){if(norm.x>=box.minX&&norm.x<=box.maxX&&norm.y>=box.minY&&norm.y<=box.maxY){const poly=this.state.graph.countries.get(cid).map(vid=>this.state.graph.vertices.get(vid).position);if(pointInPoly(norm,poly)){hit=cid;break;}}}
- if(hit===null)return;switch(this.state.ui.op){case 'CUT':this.state=Ops.cutExec(this.state,hit);break;default:this.state=Ops.assign(this.state,hit);}this.checkWin();this.paint();}
- checkWin(){if(this.state.level.win(this.state)){this.state.ui.mode='WIN';document.getElementById('msg').insertAdjacentHTML('beforeend','<button id="next-level-btn">下一关</button>');document.getElementById('next-level-btn').onclick=()=>this.load(this.idx+1);} }
- paint(){Renderer.draw(this.state);document.getElementById('level-name').textContent=this.state.level.name;document.getElementById('msg').textContent=this.state.ui.msg;document.getElementById('message-bar').classList.toggle('error',this.state.ui.error);document.getElementById('color-palette').querySelectorAll('button').forEach(b=>b.classList.toggle('selected',b.dataset.color===this.state.ui.selectedColor));document.getElementById('game-container').classList.toggle('frozen',this.state.ui.mode==='WIN');document.getElementById('history').textContent=`steps:${this.state.history.length}`;}}
-/************** UTIL poly **************/
-function pointInPoly(p,poly){let inside=false;for(let i=0,j=poly.length-1;i<poly.length;j=i++){const xi=poly[i].x,yi=poly[i].y,xj=poly[j].x,yj=poly[j].y;if(((yi>p.y)!==(yj>p.y))&&(p.x<(xj-xi)*(p.y-yi)/(yj-yi+1e-12)+xi))inside=!inside;}return inside;}
-/************** INIT **************/
-buildPalette();buildOps();
-const game=new Game(document.getElementById('game-canvas'),LEVELS);
+function evaluateWin(state){
+  const key = state.levelData.rules.winCheck;
+  const fn = WinCheckRegistry[key];
+  return fn? fn(state): false;
+}
+
+// =====================================================================================
+// SECTION 5: OPERATORS (Pure Functions)
+// =====================================================================================
+function op_assign(state, countryId, colorId){
+  if(!state.operators.enabled.has('Op_assign')) return state;
+  if(!isLocalLegal(state,countryId,colorId)){
+    return {
+      ...state,
+      metrics:{...state.metrics, illegalMoves: state.metrics.illegalMoves+1},
+      ui:{...state.ui, message:`非法: 邻接冲突 (国家 ${countryId}).`, error:true}
+    };
+  }
+  const newColoring = cloneColoring(state.coloring); newColoring.set(countryId,colorId);
+  const newHistory = [...state.history, snapshotState(state)];
+  let newState = {
+    ...state,
+    coloring:newColoring,
+    history:newHistory,
+    metrics:{...state.metrics, steps: state.metrics.steps+1},
+    ui:{...state.ui, message:`国家 ${countryId} ← ${COLORS[colorId].name}`, error:false}
+  };
+  if(evaluateWin(newState)){
+    newState = {
+      ...newState,
+      ui:{...newState.ui, mode:'WIN', message:`完成! ${state.levelData.name} 已合法染色。`, error:false}
+    };
+  }
+  return newState;
+}
+
+// Placeholder for future operators (Kempe inversion, cut/return) – stubs retain purity & invariants.
+function op_invKempe(state, payload){
+  // payload: { startCountry, colorA, colorB }
+  if(!state.operators.enabled.has('Op_inv')) return state;
+  // TODO: BFS chain extraction + color swap + dependency registration
+  return state; // currently inert
+}
+function op_cut(state, payload){
+  if(!state.operators.enabled.has('Op_cut')) return state; return state; }
+function op_return(state, payload){
+  if(!state.operators.enabled.has('Op_return')) return state; return state; }
+
+function op_undo(state){
+  if(state.history.length===0){
+    return { ...state, ui:{...state.ui, message:'无可撤销步骤。', error:false} };
+  }
+  const last = state.history[state.history.length-1];
+  const restored = {
+    ...state,
+    coloring: cloneColoring(last.coloring),
+    ui:{...last.ui, message:'已撤销。', error:false, mode: state.ui.mode==='WIN'?'PLAY':last.ui.mode},
+    metrics:{...last.metrics},
+    history: state.history.slice(0,-1)
+  };
+  return restored;
+}
+
+// Operator dispatch map
+const OperatorImpl = {
+  Op_assign: op_assign,
+  Op_inv: op_invKempe,
+  Op_cut: op_cut,
+  Op_return: op_return
+};
+
+// =====================================================================================
+// SECTION 6: RENDERING (Canvas Immediate Mode)
+// =====================================================================================
+const renderer = {
+  init(canvas, state){
+    this.canvas = canvas; this.ctx = canvas.getContext('2d');
+    this.devicePixelRatio = window.devicePixelRatio || 1;
+    this.logicalSize = 820; // max square
+    this.patternCache = {}; // procedural patterns
+    this._resize();
+    this._createPatterns();
+  },
+  _resize(){
+    const container = this.canvas.parentElement;
+    const side = Math.min(container.clientWidth, container.clientHeight, this.logicalSize);
+    // reset transform to avoid cumulative scale
+    this.ctx.setTransform(1,0,0,1,0,0);
+    this.canvas.style.width = side+'px';
+    this.canvas.style.height = side+'px';
+    this.canvas.width = side * this.devicePixelRatio;
+    this.canvas.height= side * this.devicePixelRatio;
+    this.ctx.scale(this.devicePixelRatio, this.devicePixelRatio);
+    this.currentPixelSide = side; // used for coordinate mapping
+  },
+  _createPatterns(){
+    for(const color of Object.values(COLORS)){
+      const c = document.createElement('canvas');
+      const size = 12; c.width=size; c.height=size; const g=c.getContext('2d');
+      g.fillStyle = color.hex; g.fillRect(0,0,size,size); g.globalAlpha=.55; g.strokeStyle='#FFFFFF'; g.lineWidth=1;
+      if(color.id==='C1'){ g.beginPath(); g.moveTo(0,size); g.lineTo(size,0); g.stroke(); }
+      else if(color.id==='C2'){ g.fillStyle='#FFFFFF'; g.beginPath(); g.arc(size/2,size/2,2.2,0,Math.PI*2); g.fill(); }
+      else if(color.id==='C3'){ g.beginPath(); g.moveTo(0,0); g.lineTo(size,size); g.moveTo(size*.3,0); g.lineTo(0,size*.3); g.stroke(); }
+      else if(color.id==='C4'){ g.beginPath(); g.moveTo(0,size/2); g.lineTo(size,size/2); g.stroke(); }
+      this.patternCache[color.id] = this.ctx.createPattern(c,'repeat');
+    }
+  },
+  render(state){
+    const ctx=this.ctx; const side=this.currentPixelSide; ctx.clearRect(0,0,side,side);
+    // Countries fill
+    for(const [cid, poly] of state.graph.countries.entries()){
+      const pts = poly.map(vid=>{ const p=state.graph.vertices.get(vid).position; return {x:p.x*side,y:p.y*side}; });
+      ctx.beginPath(); ctx.moveTo(pts[0].x,pts[0].y); for(let i=1;i<pts.length;i++) ctx.lineTo(pts[i].x,pts[i].y); ctx.closePath();
+      const cId = state.coloring.get(cid);
+      if(cId){ ctx.fillStyle = this.patternCache[cId] || COLORS[cId].hex; }
+      else { ctx.fillStyle = 'rgba(74,85,104,0.75)'; }
+      ctx.fill();
+    }
+    // Edges (vertex-level)
+    ctx.lineJoin='round'; ctx.lineCap='round'; ctx.lineWidth=1.5; ctx.strokeStyle='#E5E7EB';
+    for(const edge of state.graph.edges){
+      const [u,v]=edge.split('-').map(Number);
+      const pu=state.graph.vertices.get(u).position; const pv=state.graph.vertices.get(v).position;
+      ctx.beginPath(); ctx.moveTo(pu.x*side,pu.y*side); ctx.lineTo(pv.x*side,pv.y*side); ctx.stroke();
+    }
+  },
+  renderUI(state){
+    document.getElementById('level-name').textContent = state.levelData.name;
+    const msgBar = document.getElementById('message-bar');
+    const msgText = document.getElementById('message-text');
+    msgText.textContent = state.ui.message;
+    msgBar.classList.toggle('error', !!state.ui.error);
+    msgBar.classList.toggle('success', state.ui.mode==='WIN');
+    // Palette update
+    document.querySelectorAll('#color-palette button').forEach(btn=>{
+      const sel = btn.dataset.colorId===state.ui.selectedColorId;
+      btn.classList.toggle('selected', sel); btn.setAttribute('aria-checked', sel);
+      btn.disabled = state.ui.mode==='WIN';
+    });
+    // Operator panel toggle
+    document.querySelectorAll('#operator-panel button').forEach(btn=>{
+      const op=btn.dataset.op; const active = (op===state.ui.selectedOperator);
+      btn.classList.toggle('active', active); btn.disabled = !state.operators.enabled.has(op) || state.ui.mode==='WIN';
+    });
+    // History
+    const historyPanel = document.getElementById('history-panel');
+    historyPanel.innerHTML='';
+    state.history.slice(-40).forEach((snap,idx)=>{
+      const div=document.createElement('div'); div.className='log-entry';
+      div.textContent = `${state.history.length-40+idx+1}. coloringSize=${snap.coloring.size}`;
+      historyPanel.appendChild(div);
+    });
+    // Metrics
+    const ap = document.getElementById('analytics-panel');
+    const elapsed = ((performance.now()-state.metrics.startTime)/1000).toFixed(1);
+    ap.innerHTML = `<div>Steps</div><div>${state.metrics.steps}</div><div>Illegal</div><div>${state.metrics.illegalMoves}</div><div>Elapsed(s)</div><div>${elapsed}</div>`;
+    document.getElementById('game-container').classList.toggle('frozen', state.ui.mode==='WIN');
+  }
+};
+
+// =====================================================================================
+// SECTION 7: CONTROLLER & DISPATCH
+// =====================================================================================
+const controller = {
+  dispatch(state, action){
+    if(state.ui.isTransitioning) return state;
+    if(state.ui.mode==='WIN' && !['RESET_LEVEL'].includes(action.type)) return state;
+    switch(action.type){
+      case 'ASSIGN_COLOR': return OperatorImpl[state.ui.selectedOperator](state, action.payload.countryId, state.ui.selectedColorId);
+      case 'SELECT_COLOR': return { ...state, ui:{...state.ui, selectedColorId: action.payload.colorId} };
+      case 'SELECT_OPERATOR': return { ...state, ui:{...state.ui, selectedOperator: action.payload.operator} };
+      case 'UNDO': return op_undo(state);
+      case 'RESET_LEVEL': return createInitialState(state.levelData);
+      default: return state;
+    }
+  },
+  setupEventListeners(canvas, getState, update){
+    // Canvas click -> pick
+    canvas.addEventListener('click', e=>{
+      const rect = canvas.getBoundingClientRect();
+      const norm = { x:(e.clientX-rect.left)/rect.width, y:(e.clientY-rect.top)/rect.height };
+      const state = getState(); if(state.ui.mode==='WIN') return;
+      const cid = pickCountry(norm,state); if(cid!==null){ update({type:'ASSIGN_COLOR', payload:{countryId:cid}}); }
+    });
+    // Keyboard shortcuts
+    canvas.addEventListener('keydown', e=>{
+      const state = getState(); if(state.ui.mode==='WIN') return;
+      if(e.key>='1' && e.key<='4'){ const idx=Number(e.key)-1; update({type:'SELECT_COLOR', payload:{colorId:COLOR_IDS[idx]}}); }
+      if(e.key==='z' && (e.metaKey||e.ctrlKey)){ update({type:'UNDO'}); }
+    });
+    // Palette
+    document.getElementById('color-palette').addEventListener('click',e=>{
+      if(e.target.tagName==='BUTTON'){
+        const c=e.target.dataset.colorId; if(c) update({type:'SELECT_COLOR', payload:{colorId:c}});
+      }
+    });
+    // Operator panel
+    document.getElementById('operator-panel').addEventListener('click',e=>{
+      if(e.target.tagName==='BUTTON'){
+        const op=e.target.dataset.op; update({type:'SELECT_OPERATOR', payload:{operator:op}});
+      }
+    });
+    // Undo
+    document.addEventListener('keydown',e=>{ if(e.key==='Escape') update({type:'UNDO'}); });
+    document.getElementById('history-panel').addEventListener('dblclick',()=> update({type:'UNDO'}));
+    window.addEventListener('resize',()=>{ renderer._resize(); renderer.render(getState()); });
+  }
+};
+
+// =====================================================================================
+// SECTION 8: UI INITIALIZATION HELPERS
+// =====================================================================================
+function buildPalette(){
+  const root=document.getElementById('color-palette'); root.innerHTML='';
+  for(const c of Object.values(COLORS)){
+    const btn=document.createElement('button');
+    btn.style.backgroundColor=c.hex; btn.dataset.colorId=c.id; btn.setAttribute('role','radio'); btn.setAttribute('aria-checked','false'); btn.title=c.name; root.appendChild(btn);
+  }
+}
+function buildOperatorPanel(state){
+  const ops=['Op_assign','Op_inv','Op_cut','Op_return'];
+  const panel=document.getElementById('operator-panel'); panel.innerHTML='';
+  for(const op of ops){
+    const b=document.createElement('button'); b.textContent=op.replace('Op_',''); b.dataset.op=op; if(!state.operators.enabled.has(op)) b.disabled=true; panel.appendChild(b);
+  }
+}
+
+// =====================================================================================
+// SECTION 9: MAIN ENTRY
+// =====================================================================================
+(function main(){
+  const canvas=document.getElementById('game-canvas');
+  let state=createInitialState(level1Data);
+  renderer.init(canvas,state);
+  buildPalette(); buildOperatorPanel(state);
+
+  const update = (action)=>{
+    const newState = controller.dispatch(state, action);
+    if(newState!==state){ state=newState; renderer.render(state); renderer.renderUI(state);} };
+
+  controller.setupEventListeners(canvas, ()=>state, update);
+  renderer.render(state); renderer.renderUI(state);
+  console.log('[INIT] Boundary of Logic prototype started.');
+  window.__GAME_STATE__=()=>state;
+})();
 </script>
 </body>
 </html>
