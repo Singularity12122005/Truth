@@ -1,573 +1,334 @@
 <!doctype html>
 <html lang="zh-CN">
 <head>
-  <meta charset="utf-8" />
-  <title>4-Colour Theorem – Proof Game</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>四色定理的证明</title>
   <style>
-    body{margin:0;display:flex;font-family:sans-serif;height:100vh;overflow:hidden;background:#1a1a1a}
-    #left{flex:1;background:#f8f9fa;display:flex;flex-direction:column;border-right:2px solid #333}
-    #right{width:320px;background:#222;color:#eee;padding:12px;overflow:auto}
-    #canvas{flex:1;cursor:pointer;background:#fff;margin:4px;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,0.1)}
-    .controls{padding:8px;background:#e9ecef;border-top:1px solid #ddd}
-    button{margin:3px;padding:8px 12px;font-size:13px;border:none;border-radius:4px;cursor:pointer;background:#007bff;color:white;transition:all 0.2s}
-    button:hover{background:#0056b3;transform:translateY(-1px)}
-    button:disabled{background:#6c757d;cursor:not-allowed;transform:none}
-    .color-keys{display:inline-flex;gap:4px;margin-right:12px}
-    .color-key{width:30px;height:30px;border-radius:50%;border:2px solid #333;cursor:pointer;transition:transform 0.2s}
-    .color-key:hover{transform:scale(1.1)}
-    .log{font-size:11px;white-space:pre-wrap;line-height:1.4;font-family:monospace}
-    .success{color:#4CAF50;font-weight:bold}
-    .error{color:#F44336;font-weight:bold}
-    .info{color:#2196F3}
-    .warning{color:#FF9800}
-    #levelTitle{margin:0 0 8px 0;color:#4CAF50;font-size:16px}
-    #meta{font-size:12px;color:#ccc;margin-bottom:12px;line-height:1.3}
-    .status{background:#333;padding:6px;border-radius:4px;margin:4px 0;font-size:11px}
-    .selected{box-shadow:0 0 0 3px #007bff}
+    :root {
+      --color-gold: #FFD700;
+      --color-blue: #0077FF;
+      --color-red: #FF3B30;
+      --color-green: #34C759;
+      --color-grey: #ccc;
+      --color-dark-bg: #2c2c2c;
+      --color-light-text: #f0f0f0;
+      --color-dark-text: #333;
+      --color-border: #555;
+      --color-success: #b9f6ca;
+      --color-error: #ff8a80;
+      --color-warn: #ffd54f;
+    }
+    body { 
+      margin: 0; 
+      display: flex; 
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; 
+      height: 100vh; 
+      overflow: hidden; 
+      background-color: var(--color-dark-bg);
+    }
+    #left { flex: 1; display: flex; flex-direction: column; background: #fff; }
+    #canvas { flex: 1; cursor: pointer; }
+    #controls { 
+      padding: 8px; 
+      background: #f7f7f7; 
+      border-top: 1px solid #e0e0e0; 
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+    #controls button { 
+      margin-right: 4px; 
+      padding: 6px 12px; 
+      border-radius: 6px; 
+      border: 1px solid #ccc; 
+      background-color: #fff; 
+      cursor: pointer; 
+      transition: background-color 0.2s, box-shadow 0.2s;
+      font-weight: 500;
+    }
+    #controls button:hover { background-color: #f0f0f0; }
+    #controls button:active { background-color: #e0e0e0; box-shadow: inset 0 1px 3px rgba(0,0,0,0.1); }
+    #controls button:disabled { background-color: #e9e9e9; color: #999; cursor: not-allowed; }
+    #right { 
+      width: 350px; 
+      background: var(--color-dark-bg); 
+      color: var(--color-light-text); 
+      padding: 12px; 
+      overflow-y: auto; 
+      font-family: "SF Mono", "Fira Code", "Source Code Pro", monospace; 
+      display: flex;
+      flex-direction: column;
+    }
+    #right h3 { 
+        margin-top: 0; 
+        border-bottom: 1px solid var(--color-border); 
+        padding-bottom: 8px; 
+        color: #fff;
+    }
+    #meta { font-size: 14px; margin-bottom: 12px; line-height: 1.5; color: #ddd; }
+    .log-container { flex-grow: 1; overflow-y: auto; }
+    .log { font-size: 13px; line-height: 1.5; white-space: pre-wrap; word-break: break-all; }
+    .error { color: var(--color-error); }
+    .success { color: var(--color-success); font-weight: bold; }
+    .warn { color: var(--color-warn); }
+
+    /* Modal Styles */
+    .modal {
+        display: none; 
+        position: fixed; 
+        z-index: 1000; 
+        left: 0; top: 0; 
+        width: 100%; height: 100%; 
+        overflow: auto; 
+        background-color: rgba(0,0,0,0.6);
+        animation: fadeIn 0.3s;
+    }
+    .modal-content {
+        background-color: #fefefe;
+        margin: 15% auto;
+        padding: 20px;
+        border: 1px solid #888;
+        width: 90%;
+        max-width: 400px;
+        border-radius: 8px;
+        color: var(--color-dark-text);
+        box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        animation: slideIn 0.3s;
+    }
+    #invertColorSelector { display: flex; gap: 10px; margin: 15px 0; }
+    .color-btn { width: 40px; height: 40px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; }
+    .color-btn.selected { border-color: #000; box-shadow: 0 0 0 3px #fff, 0 0 0 5px #000; }
+    #invertModal button { padding: 8px 15px; border-radius: 5px; border: none; cursor: pointer; }
+    #btnInvertConfirm { background-color: #4CAF50; color: white; }
+    #btnInvertCancel { background-color: #f44336; color: white; }
+
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes slideIn { from { transform: translateY(-50px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
   </style>
 </head>
 <body>
   <div id="left">
     <canvas id="canvas"></canvas>
-    <div class="controls">
-      <div class="color-keys">
-        <div class="color-key" data-color="0" style="background:#FFD700" title="黄色 (1)"></div>
-        <div class="color-key" data-color="1" style="background:#0077FF" title="蓝色 (2)"></div>
-        <div class="color-key" data-color="2" style="background:#FF3B30" title="红色 (3)"></div>
-        <div class="color-key" data-color="3" style="background:#34C759" title="绿色 (4)"></div>
-      </div>
-      <button id="btnCut">Cut 切除</button>
-      <button id="btnReturn">Return 恢复</button>
-      <button id="btnInvert">Invert 反转</button>
-      <button id="btnReset">Reset 重置</button>
-      <button id="btnNext">Next Level ▶</button>
+    <div id="controls">
+      <button id="btnCut">切除 (Cut)</button>
+      <button id="btnReturn">放回 (Return)</button>
+      <button id="btnInvert">翻转 (Invert)</button>
+      <button id="btnUndo">撤销 (Undo)</button>
+      <button id="btnRedo">重做 (Redo)</button>
+      <button id="btnNext">下一关 ▶</button>
+      <span id="loading">加载中…</span>
     </div>
   </div>
   <div id="right">
-    <h3 id="levelTitle">加载中...</h3>
+    <h3 id="levelTitle"></h3>
     <div id="meta"></div>
-    <div class="status">
-      <div>Selected: <span id="selectedVertex">None</span></div>
-      <div>Stack Size: <span id="stackSize">0</span></div>
-      <div>Proper: <span id="properStatus">✓</span></div>
-    </div>
-    <hr style="border-color:#444">
+    <hr style="border-color: #555;">
     <div id="log" class="log"></div>
   </div>
 
+  <!-- Invert Modal HTML Structure -->
+  <div id="invertModal" class="modal">
+    <div class="modal-content">
+      <h4>对顶点 <span id="invertVertexId" style="font-weight:bold;"></span> 执行凯普链翻转</h4>
+      <p>请选择两种颜色 (a 与 b)，沿此链进行交换。</p>
+      <div id="invertColorSelector"></div>
+      <p>已选: <strong id="invertSelection">无</strong></p>
+      <button id="btnInvertConfirm" disabled>确认</button>
+      <button id="btnInvertCancel">取消</button>
+    </div>
+  </div>
+
   <script type="module">
-    // =============== ENGINE: GRAPH ===============
+    // =================================================================================
+    // 欢迎来到四色定理交互式证明！
+    // 本脚本整合了所有模块化的JavaScript文件，形成一个独立的、可直接运行的应用。
+    // 这样做是为了避免浏览器模块加载的跨域和路径问题，同时完整保留了原始设计的
+    // 模块化逻辑和工程严谨性。
+    // =================================================================================
+
+    // --- engine/graph.js ---
     class Vertex {
-      constructor(id, x, y) { 
-        this.id = id; 
-        this.x = x; 
-        this.y = y; 
-      }
+      constructor(id, x, y) { this.id = String(id); this.x = x; this.y = y; }
     }
-
     class Edge {
-      constructor(u, v) { 
-        this.u = u; 
-        this.v = v; 
-      }
-      equals(e) { 
-        return (this.u === e.u && this.v === e.v) || (this.u === e.v && this.v === e.u); 
-      }
+      constructor(u, v) { this.u = String(u); this.v = String(v); }
+      equals(other) { return (this.u === other.u && this.v === other.v) || (this.u === other.v && this.v === other.u); }
     }
-
     class Graph {
-      constructor() {
-        this.V = new Map();      // id -> Vertex
-        this.E = [];             // Edge[]
-        this.Pi = new Map();     // id -> adjacency list (clockwise)
-      }
-
-      addVertex(id, x, y) {
-        if (this.V.has(id)) throw new Error('duplicate vertex');
-        this.V.set(id, new Vertex(id, x, y));
-        this.Pi.set(id, []);
-      }
-
-      addEdge(u, v) {
-        const e = new Edge(u, v);
-        if (this.E.some(edge => edge.equals(e))) return; // skip duplicates
-        this.E.push(e);
-        this.Pi.get(u).push(v);
-        this.Pi.get(v).push(u);
-      }
-
-      neighbors(id) { return this.Pi.get(id) || []; }
-      degree(id)    { return this.neighbors(id).length; }
+      constructor() { this.V = new Map(); this.E = []; this.Pi = new Map(); }
+      addVertex(id, x, y) { id = String(id); if (this.V.has(id)) throw new Error(`顶点 ${id} 已存在。`); this.V.set(id, new Vertex(id, x, y)); this.Pi.set(id, []); }
+      addEdge(u, v) { u = String(u); v = String(v); if (!this.V.has(u) || !this.V.has(v)) throw new Error(`addEdge: 未知顶点 ${u} 或 ${v}`); const e = new Edge(u, v); if (this.E.some(ex => ex.equals(e))) return; this.E.push(e); this.Pi.get(u).push(v); this.Pi.get(v).push(u); }
+      neighbors(id) { return this.Pi.get(String(id)) || []; }
+      degree(id) { return this.neighbors(id).length; }
+      get edges() { return this.E.map(e => [e.u, e.v]); }
+      clone() { const g2 = new Graph(); for (const [id, v] of this.V.entries()) { g2.V.set(id, new Vertex(id, v.x, v.y)); g2.Pi.set(id, []); } for (const e of this.E) { g2.E.push(new Edge(e.u, e.v)); g2.Pi.get(e.u).push(e.v); g2.Pi.get(e.v).push(e.u); } return g2; }
     }
 
-    // =============== ENGINE: STATE ===============
-    const COLORS = ['#FFD700', '#0077FF', '#FF3B30', '#34C759']; // 黄/蓝/红/绿
-
+    // --- engine/state.js ---
     class StackFrame {
-      constructor(v, adj, pos, colour) {
-        this.v = v; 
-        this.adj = [...adj]; 
-        this.pos = pos; 
-        this.colour = colour;
-      }
+      constructor(v, adjList, posMap, prevColor) { this.v = v; this.adj = adjList.slice(); this.pos = new Map(posMap); this.prevColor = prevColor; }
     }
-
     class State {
-      constructor(graph) {
-        this.G = graph;                  // Graph
-        this.Phi = new Map();            // id -> colour index (0-3) | null (⊥)
-        this.G.V.forEach((_v, id) => this.Phi.set(id, null));
-        this.K = [];                     // Stack<StackFrame>
-      }
+      constructor(graph) { this.G = graph; this.Phi = new Map(); for (const id of graph.V.keys()) { this.Phi.set(id, null); } this.K = []; this.hash = null; }
+      clone() { const g2 = this.G.clone(); const s2 = new State(g2); s2.Phi = new Map(this.Phi); s2.K = this.K.map(f => new StackFrame(f.v, f.adj.slice(), new Map(f.pos), f.prevColor)); s2.hash = this.hash; return s2; }
+      isProper() { for (const [u,v] of this.G.edges) { const cu = this.Phi.get(u), cv = this.Phi.get(v); if (cu !== null && cu === cv) return false; } return true; }
+      isWin() { if (!this.isProper()) return false; for (const c of this.Phi.values()) { if (c === null) return false; } return true; }
+    }
+    const COLORS = ['#FFD700','#0077FF','#FF3B30','#34C759'];
 
-      clone() {
-        const g = this.G; // Graph 对象为同引用即可（不在 clone 中改图结构）
-        const s = new State(g);
-        s.Phi = new Map(this.Phi);
-        s.K = this.K.map(f => structuredClone(f));
-        return s;
+    // --- engine/operators.js ---
+    function assignColour(state, v, colourIdx) {
+      const s2 = state.clone();
+      if (!s2.G.V.has(v)) return [null, `顶点 ${v} 不存在。`];
+      if (s2.Phi.get(v) !== null) {
+        return [null, { type: 'RuleViolation', message: `顶点 ${v} 已被预先着色。在某些关卡中，您需要通过其他操作（如“翻转”）来为目标顶点创造着色条件，而不是直接修改预设颜色。` }];
       }
-
-      // -------- Predicate --------
-      isProper() {
-        for (const e of this.G.E) {
-          const cu = this.Phi.get(e.u), cv = this.Phi.get(e.v);
-          if (cu !== null && cu === cv) return false;
-        }
-        return true;
-      }
-
-      isWin() {
-        return this.isProper() && [...this.Phi.values()].every(c => c !== null);
-      }
+      s2.Phi.set(v, colourIdx);
+      if (!s2.isProper()) return [null, `着色冲突：邻国颜色相同。`];
+      return [s2, null];
     }
 
-    // =============== ENGINE: OPERATORS ===============
-    function assignColour(state, vId, colourIdx) {
-      const s = state.clone();
-      if (s.Phi.get(vId) !== null) return [null, 'Vertex already coloured'];
-      s.Phi.set(vId, colourIdx);
-      if (!s.isProper()) return [null, 'Improper colouring'];
-      return [s, null];
-    }
-
-    function cut(state, vId) {
-      const s = state.clone();
-      if (!s.G.V.has(vId)) return [null, 'Vertex not in graph'];
-      const adj = s.G.neighbors(vId);
-      const pos = 0; // 简化：不记录嵌入相对位置
-      const frame = new StackFrame(vId, adj, pos, s.Phi.get(vId));
-      s.K.push(frame);
-
-      // 真正把顶点移除
-      s.G.V.delete(vId);
-      s.G.E = s.G.E.filter(e => e.u !== vId && e.v !== vId);
-      s.Phi.delete(vId);
-      s.G.Pi.delete(vId);
-      for (const n of adj) {
-        s.G.Pi.set(n, s.G.Pi.get(n).filter(x => x !== vId));
-      }
-      return [s, null];
+    function cut(state, v) {
+      const s2 = state.clone();
+      if (!s2.G.V.has(v)) return [null, `顶点 ${v} 不存在。`];
+      const neighbors = s2.G.neighbors(v);
+      const posMap = new Map();
+      for (const u of neighbors) { const arr = s2.G.Pi.get(u); const idx = arr.indexOf(v); posMap.set(u, idx); arr.splice(idx, 1); }
+      s2.G.V.delete(v);
+      s2.G.E = s2.G.E.filter(e => e.u !== v && e.v !== v);
+      s2.G.Pi.delete(v);
+      const prevColor = s2.Phi.get(v);
+      s2.Phi.delete(v);
+      const frame = new StackFrame(v, neighbors, posMap, prevColor);
+      s2.K.push(frame);
+      return [s2, null];
     }
 
     function ret(state) {
-      const s = state.clone();
-      if (!s.K.length) return [null, 'Stack empty'];
-      const frame = s.K.pop();
-      const {v, adj, colour} = frame;
-      
-      // 复活顶点 - 找一个合适的位置
-      let x = 250, y = 150;
-      if (adj.length > 0) {
-        const neighbors = adj.filter(n => s.G.V.has(n));
-        if (neighbors.length > 0) {
-          const avgX = neighbors.reduce((sum, n) => sum + s.G.V.get(n).x, 0) / neighbors.length;
-          const avgY = neighbors.reduce((sum, n) => sum + s.G.V.get(n).y, 0) / neighbors.length;
-          x = avgX + (Math.random() - 0.5) * 50;
-          y = avgY + (Math.random() - 0.5) * 50;
-        }
-      }
-      
-      s.G.addVertex(v, x, y);
-      for (const n of adj) {
-        if (s.G.V.has(n)) {
-          s.G.addEdge(v, n);
-        }
-      }
-      s.Phi.set(v, null); // uncoloured
-      return [s, null];
+      const s2 = state.clone();
+      if (s2.K.length === 0) return [null, '栈中没有可供“放回”的顶点。'];
+      const frame = s2.K.pop();
+      const v = frame.v;
+      let avgX = 0, avgY = 0, validNeighbors = 0;
+      if (frame.adj.length > 0) {
+          for(const neighborId of frame.adj) { const neighborV = state.G.V.get(neighborId); if(neighborV) { avgX += neighborV.x; avgY += neighborV.y; validNeighbors++; } }
+          if (validNeighbors > 0) { avgX /= validNeighbors; avgY /= validNeighbors; } else { avgX = canvas.width / 2; avgY = canvas.height / 2; }
+      } else { avgX = canvas.width / 2; avgY = canvas.height / 2; }
+      s2.G.addVertex(v, avgX, avgY);
+      for (const u of frame.adj) { if (s2.G.V.has(u)) { s2.G.addEdge(v, u); const arr = s2.G.Pi.get(u); arr.splice(frame.pos.get(u), 0, v); } }
+      s2.G.Pi.set(v, frame.adj.slice());
+      s2.Phi.set(v, null);
+      return [s2, null];
     }
 
-    // Kempe chain (BFS over {a,b} colours through adjacency)
-    function kempeChain(state, vId, a, b) {
-      const queue = [vId];
-      const visited = new Set([vId]);
-      while (queue.length) {
-        const cur = queue.shift();
-        for (const n of state.G.neighbors(cur)) {
-          const c = state.Phi.get(n);
-          if (!visited.has(n) && (c === a || c === b)) {
-            visited.add(n);
-            queue.push(n);
-          }
-        }
-      }
+    function kempeChain(state, v, a, b) {
+      const Q = [v], visited = new Set([v]);
+      let head = 0;
+      while(head < Q.length) { const cur = Q[head++]; for (const n of state.G.neighbors(cur)) { const c = state.Phi.get(n); if (!visited.has(n) && (c === a || c === b)) { visited.add(n); Q.push(n); } } }
       return visited;
     }
 
-    function invert(state, vId, aIdx, bIdx) {
-      const s = state.clone();
-      const cRoot = s.Phi.get(vId);
-      if (cRoot === null) return [null, 'Root uncoloured'];
-      if (aIdx === bIdx) return [null, 'Need two distinct colours'];
-      const chain = kempeChain(s, vId, aIdx, bIdx);
-      chain.forEach(id => {
-        const c = s.Phi.get(id);
-        if (c === aIdx) s.Phi.set(id, bIdx);
-        else if (c === bIdx) s.Phi.set(id, aIdx);
-      });
-      if (!s.isProper()) return [null, 'Invert caused improper colouring'];
-      return [s, null];
+    function invert(state, v, a, b) {
+      const s2 = state.clone();
+      const cv = s2.Phi.get(v);
+      if (cv === null) return [null, '顶点尚未着色。'];
+      if (![a,b].includes(cv)) return [null, '顶点 v 的颜色 (Φ(v)) 必须是您选择的两种颜色之一。'];
+      if (a === b) return [null, '颜色 a 与 b 必须不同。'];
+      const chain = kempeChain(s2, v, a, b);
+      for (const id of chain) { const c = s2.Phi.get(id); if (c === a) s2.Phi.set(id, b); else if (c === b) s2.Phi.set(id, a); }
+      if (!s2.isProper()) { return [null, { type: 'RuleViolation', message: '翻转操作将导致着色冲突，操作已中止。' }]; }
+      return [s2, null];
     }
 
-    // =============== ENGINE: LEVEL ===============
+    // --- engine/level.js ---
     class Level {
-      constructor(name, desc, buildFn, goalPredicate) {
-        this.name = name;
-        this.desc = desc;
-        this.buildFn = buildFn; // () => State
-        this.goalPredicate = goalPredicate; // (State, Trace[]) => bool
-      }
+      constructor(name, desc, buildFn, goalFn) { this.name = name; this.desc = desc; this.buildFn = buildFn; this.goalFn = goalFn; }
     }
-
-    const Trace = [];
-    function pushTrace(txt) { 
-      Trace.push(txt); 
-      log(`> ${txt}`, 'info');
-    }
-    function clearTrace() { 
-      Trace.length = 0; 
-    }
-
-    // =============== LEVELS ===============
     const levels = [];
+    function registerLevel(lvl) { levels.push(lvl); }
 
-    // L0: 基础三角形着色
-    levels.push(new Level('L0: Warm-up Triangle',
-      '目标：给三角形的3个顶点合法上色（相邻顶点颜色不同）。\n这是最基础的图着色问题。',
-      function buildState() {
-        const g = new Graph();
-        g.addVertex('A', 200, 100);
-        g.addVertex('B', 350, 200);
-        g.addVertex('C', 200, 300);
-        g.addEdge('A', 'B');
-        g.addEdge('B', 'C');
-        g.addEdge('C', 'A');
-        return new State(g);
-      },
-      function goal(s) { return s.isWin(); }
-    ));
+    // --- 关卡定义 ---
+    registerLevel(new Level( 'L0: 热身 - 什么是合法着色？', '证明四色定理的第一步是理解“合法着色”。任何两个共享边界的国家（在图中即为由边相连的顶点）都不能拥有相同的颜色。请为这张最简单的地图（K3图）进行合法着色。点击一个国家，然后按键盘上的 1-4 来选择颜色。', () => { const g = new Graph(); g.addVertex('A',150,150); g.addVertex('B',300,150); g.addVertex('C',225,300); g.addEdge('A','B'); g.addEdge('B','C'); g.addEdge('C','A'); return new State(g); }, (state) => state.isWin() ));
+    registerLevel(new Level( 'L1: 归纳法 - “切除”与“放回”', '数学归纳法是证明四色定理的核心。其思想是：如果我们能证明“若所有 n 个顶点的地图都可四色，则所有 n+1 个顶点的地图也可四色”，那么定理就成立。这里的“切除 (Cut)”操作，就是将一个 n+1 顶点的地图简化为 n 顶点的地图。请先“切除”一个顶点，为剩余地图着色，然后用“放回 (Return)”操作恢复它，并完成最终着色。', () => { const g = new Graph(); g.addVertex('X',250,200); const pts = [['A',150,100],['B',350,100],['C',400,300],['D',250,400],['E',100,300]]; pts.forEach(([id,x,y])=>g.addVertex(id,x,y)); const path = ['A','B','C','D','E','A']; for (let i = 0; i < path.length - 1; i++) { g.addEdge(path[i], path[i+1]); } pts.forEach(([id])=>g.addEdge('X',id)); return new State(g); }, (s, traces) => s.isWin() && traces.some(r=>r.op==='Cut') && traces.some(r=>r.op==='Return') ));
+    registerLevel(new Level( 'L2: 凯普链 (基础形态)', '欢迎来到第一个难题。请注意：本地图的四周国家已被预先着色，因此您无法对它们再次使用“着色”操作。在这种局面下，中心顶点 X 的邻国用尽了全部四种颜色，直接为其着色已不可能。此时，我们必须使用“翻转 (Invert)”操作。这是对“凯普链”最基础的应用：选择 X 的一个邻居（例如 A），再选择一种 X 的其他邻居已使用的颜色（例如 C 的红色），然后对 A 执行 (金/红) 翻转。这会形成一条只包含 A 自身的“凯普链”，并安全地将 A 的颜色变为红色，从而为 X 腾出原先的金色。请必须使用一次翻转操作来完成本关。', () => { const g = new Graph(); g.addVertex('X',250,200); const ring = [['A',150,100,0], ['B',350,100,1], ['C',350,300,2], ['D',150,300,3]]; ring.forEach(([id,x,y])=>g.addVertex(id,x,y)); ring.forEach((_,i)=>{ g.addEdge(ring[i][0], ring[(i+1)%4][0]); g.addEdge('X', ring[i][0]); }); const s = new State(g); ring.forEach(([id,, ,col])=> s.Phi.set(id, col)); return s; }, (s, traces) => s.isWin() && traces.some(r => r.op === 'Invert') ));
+    const buildL3L4Graph = () => { const g = new Graph(); g.addVertex('X', 250, 200); const ring = [['A', 150, 100, 0], ['B', 350, 100, 1], ['C', 400, 250, 2], ['D', 250, 350, 3], ['E', 100, 250, 0]]; ring.forEach(([id,x,y]) => g.addVertex(id, x, y)); for (let i = 0; i < ring.length - 1; i++) { g.addEdge(ring[i][0], ring[i + 1][0]); } ring.forEach(([id]) => g.addEdge('X', id)); const s = new State(g); ring.forEach(([id, , , col]) => s.Phi.set(id, col)); return s; };
+    registerLevel(new Level( 'L3: 五邻国情形 - 寻找正确的凯普链', '这是证明中的一个典型场景。中心点 X 有五个邻居，但邻居只用了四种颜色，因为顶点 A 和 E 颜色相同（金色）。这导致 X 仍然没有可用颜色。此时，关键在于选择正确的颜色对来构造凯普链。请观察，哪条凯普链可以断开 A 和 E 的颜色连接，从而为 X 腾出空间？提示：请对从 A 或 E 出发的 (金/红) 链进行翻转。', buildL3L4Graph, (state, traces) => { if (!state.isWin()) return false; const didInvert02 = traces.some(r => r.op === 'Invert' && (r.args.v === 'A' || r.args.v === 'E') && ((r.args.a === 0 && r.args.b === 2) || (r.args.a === 2 && r.args.b === 0))); if (!didInvert02) return false; return traces.some(r => r.op === 'Assign' && r.args.v === 'X' && r.args.c === 0); } ));
+    registerLevel(new Level( 'L4: 连锁翻转 - 复杂的局面', '真实的证明比单一凯普链更复杂。有时，一次翻转是为了给下一次翻转创造条件。在这个关卡中，你无法一次性为 X 腾出颜色。你需要先执行一次翻转，改变局面，然后再执行第二次翻转，最终才能解决问题。这体现了证明中处理复杂构型时所需的策略深度。请按顺序执行两次指定的翻转操作。', buildL3L4Graph, (state, traces) => { if (!state.isWin()) return false; const idx1 = traces.findIndex(r => r.op === 'Invert' && (r.args.v === 'A' || r.args.v === 'E') && ((r.args.a === 0 && r.args.b === 2) || (r.args.a === 2 && r.args.b === 0))); if (idx1 < 0) return false; const idx2 = traces.findIndex(r => r.op === 'Invert' && r.args.v === 'C' && ((r.args.a === 2 && r.args.b === 3) || (r.args.a === 3 && r.args.b === 2))); if (idx2 < 0 || idx2 <= idx1) return false; return traces.findIndex(r => r.op === 'Assign' && r.args.v === 'X' && r.args.c === 0) > idx2; } ));
 
-    // L1: Cut/Return 归纳
-    levels.push(new Level('L1: Induction – Cut & Return',
-      '目标：使用Cut和Return操作完成着色。\n这演示了归纳证明的核心思想：先简化问题，再构建解。',
-      function buildState() {
-        const g = new Graph();
-        // 五边形 + 中心点（轮图W5）
-        g.addVertex('X', 250, 150);
-        const coords = [[200, 80, 'A'], [350, 120, 'B'], [380, 220, 'C'], [250, 280, 'D'], [120, 220, 'E']];
-        coords.forEach(([x, y, id]) => g.addVertex(id, x, y));
-        
-        // 外环
-        for (let i = 0; i < 5; i++) {
-          g.addEdge(coords[i][2], coords[(i + 1) % 5][2]);
-        }
-        // 中心到所有外围
-        coords.forEach(([,, id]) => g.addEdge('X', id));
-        return new State(g);
-      },
-      function goal(s, trace) {
-        return s.isWin() && trace.some(t => t.includes('Cut')) && trace.some(t => t.includes('Return'));
+    // --- ui/renderer.js ---
+    function bufferToHex(buf) { return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2,'0')).join(''); }
+    async function calculateStateHash(state) { const canonicalPi = Array.from(state.G.Pi.entries()).sort((a,b)=>String(a[0]).localeCompare(String(b[0]))).map(([key,arr])=>[key, [...arr].sort((u,v)=>String(u).localeCompare(String(v)))]); const canonicalEdges = state.G.edges.map(([u,v])=> { const a=String(u), b=String(v); return a<b ? [a,b] : [b,a]; }).sort((e1,e2)=> { const c = String(e1[0]).localeCompare(String(e2[0])); return c!==0 ? c : String(e1[1]).localeCompare(String(e2[1])); }); const canonicalPhi = Array.from(state.Phi.entries()).sort((a,b)=>String(a[0]).localeCompare(String(b[0]))); const obj = { graphPi: canonicalPi, graphEdges: canonicalEdges, coloringPhi: canonicalPhi }; const str = JSON.stringify(obj); const data = new TextEncoder().encode(str); const hashBuf = await crypto.subtle.digest('SHA-256', data); return bufferToHex(hashBuf); }
+    let canvas, ctx, currentLevelIndex = 0, state = null, history = [], historyIndex = -1, traces = [], uiEnabled = false, selectedVertex = null;
+    const EL = {};
+    const opMap = { 'Init': '初始化', 'Assign': '着色', 'Cut': '切除', 'Return': '放回', 'Invert': '翻转' };
+    function log(msg, cls='') { const d = document.createElement('div'); if (cls) d.classList.add(cls); d.textContent = msg; EL.log.appendChild(d); EL.log.scrollTop = EL.log.scrollHeight; }
+    function draw() { if (!ctx || !state) return; ctx.clearRect(0,0,canvas.width,canvas.height); ctx.strokeStyle = '#333'; ctx.lineWidth = 2.5; for (const [u,v] of state.G.edges) { const A = state.G.V.get(u), B = state.G.V.get(v); if (!A || !B) continue; ctx.beginPath(); ctx.moveTo(A.x,A.y); ctx.lineTo(B.x,B.y); ctx.stroke(); } for (const [id, vert] of state.G.V.entries()) { const c = state.Phi.get(id); ctx.fillStyle = (c===null ? 'var(--color-grey)' : COLORS[c]); ctx.beginPath(); ctx.arc(vert.x, vert.y, 20, 0, 2*Math.PI); ctx.fill(); ctx.lineWidth = (selectedVertex===id ? 4 : 2.5); ctx.strokeStyle = (selectedVertex===id ? '#000' : '#333'); ctx.stroke(); ctx.fillStyle = '#000'; ctx.font = 'bold 14px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(id, vert.x, vert.y); } }
+    function hitTest(x,y) { if (!state) return null; for (const [id, v] of state.G.V.entries()) { const dx = x-v.x, dy = y-v.y; if (dx*dx+dy*dy < 20*20) return id; } return null; }
+    function renderTrace() { EL.log.innerHTML = ''; for (let i=0; i<=historyIndex; i++) { const r = traces[i]; if (!r) continue; const argsStr = JSON.stringify(r.args); const shortHash = r.post_hash.substring(0, 8); const opName = opMap[r.op] || r.op; log(`[${r.idx}] 操作: ${opName} ${argsStr} ↦ 哈希: ${shortHash}...`); } }
+    function setUIEnabled(isEnabled) { uiEnabled = isEnabled; Object.values(EL.buttons).forEach(b => b.disabled = !isEnabled); EL.loading.style.display = isEnabled ? 'none' : 'inline'; }
+    function layoutGraph(graph, padding = 40) { if (graph.V.size === 0) return; let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity; for (const vertex of graph.V.values()) { minX = Math.min(minX, vertex.x); minY = Math.min(minY, vertex.y); maxX = Math.max(maxX, vertex.x); maxY = Math.max(maxY, vertex.y); } const originalWidth = maxX - minX; const originalHeight = maxY - minY; const canvasWidth = canvas.width - padding * 2; const canvasHeight = canvas.height - padding * 2; const scaleX = (originalWidth > 0) ? canvasWidth / originalWidth : 1; const scaleY = (originalHeight > 0) ? canvasHeight / originalHeight : 1; const scale = Math.min(scaleX, scaleY); const newWidth = originalWidth * scale; const newHeight = originalHeight * scale; const offsetX = padding + (canvasWidth - newWidth) / 2; const offsetY = padding + (canvasHeight - newHeight) / 2; for (const vertex of graph.V.values()) { const translatedX = vertex.x - minX; const translatedY = vertex.y - minY; vertex.x = translatedX * scale + offsetX; vertex.y = translatedY * scale + offsetY; } }
+    async function loadLevel(idx) { setUIEnabled(false); currentLevelIndex = idx; const lvl = levels[idx]; EL.levelTitle.textContent = lvl.name; EL.meta.innerHTML = lvl.desc.replace(/\(([^)]+)\)/g, '<strong>($1)</strong>'); traces = []; history = []; historyIndex = -1; selectedVertex = null; EL.log.innerHTML = ''; const s0 = lvl.buildFn(); layoutGraph(s0.G, 40); const h0 = await calculateStateHash(s0); s0.hash = h0; state = s0; history.push(s0); historyIndex = 0; traces.push({ idx:0, op:'Init', args:{}, pre_hash:null, post_hash:h0, type:'Init' }); draw(); renderTrace(); setUIEnabled(true); }
+    async function applyOp(opName, args) {
+      if (!uiEnabled) return;
+      setUIEnabled(false);
+      const pre_hash = state.hash;
+      let err, newState;
+      switch(opName) {
+        case 'Assign': [newState,err] = assignColour(state, args.v, args.c); break;
+        case 'Cut':    [newState,err] = cut(state, args.v); break;
+        case 'Return': [newState,err] = ret(state); break;
+        case 'Invert': [newState,err] = invert(state, args.v, args.a, args.b); break;
       }
-    ));
-
-    // L2: Kempe 链
-    levels.push(new Level('L2: Kempe Chain Magic',
-      '挑战：中心顶点X被4个不同颜色包围，无法直接着色。\n使用Kempe链反转操作来创造着色空间！',
-      function buildState() {
-        const g = new Graph();
-        g.addVertex('X', 250, 150);
-        const ring = [['A', 200, 80, 0], ['B', 350, 120, 1], ['C', 300, 250, 2], ['D', 150, 250, 3]];
-        ring.forEach(([id, x, y]) => g.addVertex(id, x, y));
-        
-        // 方形环
-        ring.forEach((_, i) => g.addEdge(ring[i][0], ring[(i + 1) % 4][0]));
-        ring.forEach(([id]) => g.addEdge('X', id));
-        
-        const s = new State(g);
-        ring.forEach(([id,,, colour]) => s.Phi.set(id, colour));
-        return s;
-      },
-      function goal(s) { return s.isWin(); }
-    ));
-
-    // L3: 复杂Kempe情况
-    levels.push(new Level('L3: Complex Kempe Scenario',
-      '高级挑战：多个冲突需要巧妙的Kempe链操作序列。\n这模拟了Appel-Haken证明中的复杂情况。',
-      function buildState() {
-        const g = new Graph();
-        // 创建一个更复杂的配置
-        const vertices = [
-          ['A', 150, 100, 0], ['B', 250, 100, 1], ['C', 350, 100, 2],
-          ['D', 350, 200, 3], ['E', 250, 200, null], ['F', 150, 200, 0],
-          ['X', 250, 150, null], ['Y', 200, 150, null]
-        ];
-        
-        vertices.forEach(([id, x, y]) => g.addVertex(id, x, y));
-        
-        const edges = [
-          ['A','B'], ['B','C'], ['C','D'], ['D','E'], ['E','F'], ['F','A'],
-          ['A','X'], ['B','X'], ['C','Y'], ['D','Y'], ['E','X'], ['E','Y'], ['F','X']
-        ];
-        
-        edges.forEach(([u, v]) => g.addEdge(u, v));
-        
-        const s = new State(g);
-        vertices.forEach(([id,,, color]) => {
-          if (color !== null) s.Phi.set(id, color);
-        });
-        
-        return s;
-      },
-      function goal(s) { return s.isWin(); }
-    ));
-
-    // =============== UI & RENDERER ===============
-    const canvas = document.getElementById('canvas');
-    const ctx = canvas.getContext('2d');
-    
-    function resizeCanvas() {
-      canvas.width = canvas.clientWidth;
-      canvas.height = canvas.clientHeight;
-    }
-    resizeCanvas();
-    window.addEventListener('resize', resizeCanvas);
-
-    let currentIdx = 0, level, state, originalState;
-    let selectedVertex = null, pendingInvertA = null;
-
-    function load(idx) {
-      level = levels[idx];
-      state = level.buildFn();
-      originalState = level.buildFn(); // 保存原始状态用于重置
-      currentIdx = idx;
-      selectedVertex = null;
-      pendingInvertA = null;
-      clearTrace();
-      
-      document.getElementById('levelTitle').textContent = level.name;
-      document.getElementById('meta').textContent = level.desc;
-      document.getElementById('log').textContent = '';
-      document.getElementById('selectedVertex').textContent = 'None';
-      
-      updateStatus();
-      draw();
-      log(`关卡加载: ${level.name}`, 'success');
-    }
-
-    function log(msg, cls = '') { 
-      const div = document.getElementById('log');
-      const time = new Date().toLocaleTimeString();
-      div.innerHTML += `<div class="${cls}">[${time}] ${msg}</div>`;
-      div.scrollTop = div.scrollHeight;
-    }
-
-    function updateStatus() {
-      document.getElementById('stackSize').textContent = state.K.length;
-      document.getElementById('properStatus').textContent = state.isProper() ? '✓' : '✗';
-      document.getElementById('properStatus').style.color = state.isProper() ? '#4CAF50' : '#F44336';
-    }
-
-    function hitTest(x, y) {
-      for (const v of state.G.V.values()) {
-        const dx = x - v.x, dy = y - v.y;
-        if (dx * dx + dy * dy < 400) return v.id; // 20px radius
-      }
-      return null;
-    }
-
-    function draw() {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      
-      // 绘制边
-      ctx.lineWidth = 2;
-      ctx.strokeStyle = '#333';
-      state.G.E.forEach(e => {
-        const u = state.G.V.get(e.u), v = state.G.V.get(e.v);
-        ctx.beginPath();
-        ctx.moveTo(u.x, u.y);
-        ctx.lineTo(v.x, v.y);
-        ctx.stroke();
-      });
-      
-      // 绘制顶点
-      state.G.V.forEach(v => {
-        const cIdx = state.Phi.get(v.id);
-        
-        // 顶点圆
-        ctx.fillStyle = cIdx === null ? '#e9ecef' : COLORS[cIdx];
-        ctx.beginPath();
-        ctx.arc(v.x, v.y, 20, 0, Math.PI * 2);
-        ctx.fill();
-        
-        // 边框
-        ctx.strokeStyle = selectedVertex === v.id ? '#007bff' : '#333';
-        ctx.lineWidth = selectedVertex === v.id ? 3 : 2;
-        ctx.stroke();
-        
-        // 标签
-        ctx.fillStyle = '#000';
-        ctx.font = 'bold 14px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(v.id, v.x, v.y);
-      });
-      
-      updateStatus();
-    }
-
-    function checkWin() {
-      if (level.goalPredicate(state, Trace)) {
-        log('🎉 关卡完成！恭喜！', 'success');
-        document.getElementById('btnNext').style.background = '#28a745';
-        setTimeout(() => {
-          document.getElementById('btnNext').style.background = '#007bff';
-        }, 2000);
-      }
-    }
-
-    // =============== EVENT HANDLERS ===============
-    canvas.addEventListener('click', e => {
-      const rect = canvas.getBoundingClientRect();
-      const id = hitTest(e.clientX - rect.left, e.clientY - rect.top);
-      if (id) {
-        selectedVertex = id;
-        document.getElementById('selectedVertex').textContent = id;
-        log(`选中顶点: ${id}`);
-        draw();
-      }
-    });
-
-    // 颜色按钮点击
-    document.querySelectorAll('.color-key').forEach(key => {
-      key.addEventListener('click', () => {
-        if (!selectedVertex) {
-          log('请先选择一个顶点', 'warning');
-          return;
-        }
-        
-        const colour = parseInt(key.dataset.color);
-        const [newState, err] = assignColour(state, selectedVertex, colour);
-        if (err) {
-          log(`❌ ${err}`, 'error');
+      if (err) {
+        // **LOGIC FIX**: Differentiate between rule violations (warnings) and actual errors.
+        if (typeof err === 'object' && err.type === 'RuleViolation') {
+            log(`[提示] ${err.message}`, 'warn');
         } else {
-          state = newState;
-          pushTrace(`Assign ${selectedVertex} color-${colour}`);
-          draw();
-          checkWin();
+            log(`[错误] ${err}`, 'error');
         }
-      });
-    });
-
-    // 键盘事件
-    window.addEventListener('keydown', e => {
-      const key = e.key;
-      if ('1234'.includes(key) && selectedVertex) {
-        const colour = Number(key) - 1;
-        const [newState, err] = assignColour(state, selectedVertex, colour);
-        if (err) {
-          log(`❌ ${err}`, 'error');
-        } else {
-          state = newState;
-          pushTrace(`Assign ${selectedVertex} color-${colour}`);
-          draw();
-          checkWin();
-        }
-      }
-    });
-
-    // 按钮事件
-    document.getElementById('btnCut').onclick = () => {
-      if (!selectedVertex) {
-        log('请先选择要切除的顶点', 'warning');
+        setUIEnabled(true);
         return;
       }
-      const [newState, err] = cut(state, selectedVertex);
-      if (err) {
-        log(`❌ ${err}`, 'error');
-      } else {
-        state = newState;
-        pushTrace(`Cut ${selectedVertex}`);
-        selectedVertex = null;
-        document.getElementById('selectedVertex').textContent = 'None';
-        draw();
-      }
-    };
-
-    document.getElementById('btnReturn').onclick = () => {
-      const [newState, err] = ret(state);
-      if (err) {
-        log(`❌ ${err}`, 'error');
-      } else {
-        state = newState;
-        pushTrace('Return');
-        draw();
-        checkWin();
-      }
-    };
-
-    document.getElementById('btnInvert').onclick = () => {
-      if (!selectedVertex) {
-        log('请先选择根顶点进行Kempe链反转', 'warning');
-        return;
-      }
-      
-      const a = parseInt(prompt('输入颜色 a (1-4):')) - 1;
-      const b = parseInt(prompt('输入颜色 b (1-4):')) - 1;
-      
-      if (isNaN(a) || isNaN(b) || a < 0 || a > 3 || b < 0 || b > 3) {
-        log('❌ 无效的颜色输入', 'error');
-        return;
-      }
-      
-      const [newState, err] = invert(state, selectedVertex, a, b);
-      if (err) {
-        log(`❌ ${err}`, 'error');
-      } else {
-        state = newState;
-        pushTrace(`Invert ${selectedVertex} colors ${a}<->${b}`);
-        draw();
-        checkWin();
-      }
-    };
-
-    document.getElementById('btnReset').onclick = () => {
-      state = level.buildFn();
-      selectedVertex = null;
-      document.getElementById('selectedVertex').textContent = 'None';
-      clearTrace();
-      log('关卡重置', 'info');
+      state = newState;
+      const newHash = await calculateStateHash(state);
+      state.hash = newHash;
+      history.splice(historyIndex+1);
+      history.push(state.clone());
+      historyIndex++;
+      traces.splice(historyIndex);
+      traces.push({ idx: historyIndex, op:opName, args, pre_hash, post_hash:newHash, type:'LegalMove' });
       draw();
-    };
-
-    document.getElementById('btnNext').onclick = () => {
-      load((currentIdx + 1) % levels.length);
-    };
-
-    // 初始化
-    window.addEventListener('load', () => {
-      setTimeout(() => load(0), 100);
-    });
+      renderTrace();
+      const lvl = levels[currentLevelIndex];
+      if (lvl.goalFn(state, traces)) { log('✔️ 关卡完成！', 'success'); }
+      setUIEnabled(true);
+    }
+    function undo() { if (!uiEnabled || historyIndex <= 0) return; historyIndex--; state = history[historyIndex].clone(); selectedVertex = null; draw(); renderTrace(); }
+    function redo() { if (!uiEnabled || historyIndex >= history.length-1) return; historyIndex++; state = history[historyIndex].clone(); selectedVertex = null; draw(); renderTrace(); }
+    let invertSelection = [];
+    function showInvertModal() { EL.invertVertexId.textContent = selectedVertex; const selector = EL.invertColorSelector; selector.innerHTML = ''; invertSelection = []; EL.invertSelection.textContent = "无"; EL.btnInvertConfirm.disabled = true; COLORS.forEach((color, index) => { const btn = document.createElement('button'); btn.className = 'color-btn'; btn.style.backgroundColor = color; btn.onclick = () => { if (invertSelection.includes(index)) { invertSelection = invertSelection.filter(i => i !== index); btn.classList.remove('selected'); } else if (invertSelection.length < 2) { invertSelection.push(index); btn.classList.add('selected'); } EL.invertSelection.textContent = invertSelection.length > 0 ? invertSelection.map(i => `颜色 ${i+1}`).join(', ') : "无"; EL.btnInvertConfirm.disabled = invertSelection.length !== 2; }; selector.appendChild(btn); }); EL.invertModal.style.display = 'block'; }
+    function hideInvertModal() { EL.invertModal.style.display = 'none'; }
+    function bindUI() {
+      canvas = document.getElementById('canvas'); ctx = canvas.getContext('2d');
+      const resizeCanvas = () => { canvas.width  = canvas.clientWidth; canvas.height = canvas.clientHeight; if (state) { layoutGraph(state.G, 40); draw(); } };
+      window.addEventListener('resize', resizeCanvas);
+      EL.log = document.getElementById('log'); EL.levelTitle = document.getElementById('levelTitle'); EL.meta = document.getElementById('meta'); EL.loading = document.getElementById('loading');
+      EL.buttons = { cut: document.getElementById('btnCut'), ret: document.getElementById('btnReturn'), invert: document.getElementById('btnInvert'), undo: document.getElementById('btnUndo'), redo: document.getElementById('btnRedo'), next: document.getElementById('btnNext'), };
+      EL.invertModal = document.getElementById('invertModal'); EL.invertVertexId = document.getElementById('invertVertexId'); EL.invertColorSelector = document.getElementById('invertColorSelector'); EL.invertSelection = document.getElementById('invertSelection'); EL.btnInvertConfirm = document.getElementById('btnInvertConfirm'); EL.btnInvertCancel = document.getElementById('btnInvertCancel');
+      canvas.addEventListener('click', e => { if (!uiEnabled) return; const rect = canvas.getBoundingClientRect(); const id = hitTest(e.clientX - rect.left, e.clientY - rect.top); selectedVertex = (selectedVertex === id) ? null : id; draw(); });
+      window.addEventListener('keydown', e => { if (!uiEnabled || e.metaKey || e.ctrlKey) return; if (/^[1-4]$/.test(e.key) && selectedVertex) { e.preventDefault(); applyOp('Assign', { v: selectedVertex, c: Number(e.key)-1 }); } });
+      EL.buttons.cut.addEventListener('click', ()=> { if (selectedVertex) applyOp('Cut', { v: selectedVertex }); });
+      EL.buttons.ret.addEventListener('click', ()=> applyOp('Return', {}));
+      EL.buttons.invert.addEventListener('click', () => { if (selectedVertex) showInvertModal(); });
+      EL.buttons.undo.addEventListener('click', undo);
+      EL.buttons.redo.addEventListener('click', redo);
+      EL.buttons.next.addEventListener('click', ()=> { const nxt = (currentLevelIndex + 1) % levels.length; loadLevel(nxt); });
+      EL.btnInvertCancel.addEventListener('click', hideInvertModal);
+      EL.btnInvertConfirm.addEventListener('click', () => { if (invertSelection.length === 2) { applyOp('Invert', { v: selectedVertex, a: invertSelection[0], b: invertSelection[1] }); hideInvertModal(); } });
+      resizeCanvas();
+    }
+    window.addEventListener('load', ()=>{ bindUI(); loadLevel(0); });
   </script>
 </body>
 </html>
