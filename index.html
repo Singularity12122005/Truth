@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>四色定理的证明</title>
+  <title>四色定理交互式证明</title>
   <style>
     :root {
       --color-gold: #FFD700;
@@ -217,7 +217,9 @@
       } else { avgX = canvas.width / 2; avgY = canvas.height / 2; }
       s2.G.addVertex(v, avgX, avgY);
       for (const u of frame.adj) { if (s2.G.V.has(u)) { s2.G.addEdge(v, u); const arr = s2.G.Pi.get(u); arr.splice(frame.pos.get(u), 0, v); } }
-      s2.G.Pi.set(v, frame.adj.slice());
+      // **CRITICAL BUG FIX**: Ensure the restored adjacency list is consistent with the current graph state.
+      const consistentAdj = frame.adj.filter(neighborId => s2.G.V.has(neighborId));
+      s2.G.Pi.set(v, consistentAdj);
       s2.Phi.set(v, null);
       return [s2, null];
     }
@@ -268,7 +270,32 @@
     function renderTrace() { EL.log.innerHTML = ''; for (let i=0; i<=historyIndex; i++) { const r = traces[i]; if (!r) continue; const argsStr = JSON.stringify(r.args); const shortHash = r.post_hash.substring(0, 8); const opName = opMap[r.op] || r.op; log(`[${r.idx}] 操作: ${opName} ${argsStr} ↦ 哈希: ${shortHash}...`); } }
     function setUIEnabled(isEnabled) { uiEnabled = isEnabled; Object.values(EL.buttons).forEach(b => b.disabled = !isEnabled); EL.loading.style.display = isEnabled ? 'none' : 'inline'; }
     function layoutGraph(graph, padding = 40) { if (graph.V.size === 0) return; let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity; for (const vertex of graph.V.values()) { minX = Math.min(minX, vertex.x); minY = Math.min(minY, vertex.y); maxX = Math.max(maxX, vertex.x); maxY = Math.max(maxY, vertex.y); } const originalWidth = maxX - minX; const originalHeight = maxY - minY; const canvasWidth = canvas.width - padding * 2; const canvasHeight = canvas.height - padding * 2; const scaleX = (originalWidth > 0) ? canvasWidth / originalWidth : 1; const scaleY = (originalHeight > 0) ? canvasHeight / originalHeight : 1; const scale = Math.min(scaleX, scaleY); const newWidth = originalWidth * scale; const newHeight = originalHeight * scale; const offsetX = padding + (canvasWidth - newWidth) / 2; const offsetY = padding + (canvasHeight - newHeight) / 2; for (const vertex of graph.V.values()) { const translatedX = vertex.x - minX; const translatedY = vertex.y - minY; vertex.x = translatedX * scale + offsetX; vertex.y = translatedY * scale + offsetY; } }
-    async function loadLevel(idx) { setUIEnabled(false); currentLevelIndex = idx; const lvl = levels[idx]; EL.levelTitle.textContent = lvl.name; EL.meta.innerHTML = lvl.desc.replace(/\(([^)]+)\)/g, '<strong>($1)</strong>'); traces = []; history = []; historyIndex = -1; selectedVertex = null; EL.log.innerHTML = ''; const s0 = lvl.buildFn(); layoutGraph(s0.G, 40); const h0 = await calculateStateHash(s0); s0.hash = h0; state = s0; history.push(s0); historyIndex = 0; traces.push({ idx:0, op:'Init', args:{}, pre_hash:null, post_hash:h0, type:'Init' }); draw(); renderTrace(); setUIEnabled(true); }
+    
+    // **ASYNC REFACTOR**: Create a robust, promise-based delay helper.
+    const delay = ms => new Promise(res => setTimeout(res, ms));
+
+    async function loadLevel(idx) { 
+        setUIEnabled(false); 
+        currentLevelIndex = idx; 
+        const lvl = levels[idx]; 
+        EL.levelTitle.textContent = lvl.name; 
+        EL.meta.innerHTML = lvl.desc.replace(/\(([^)]+)\)/g, '<strong>($1)</strong>'); 
+        traces = []; history = []; historyIndex = -1; 
+        selectedVertex = null; 
+        EL.log.innerHTML = ''; 
+        const s0 = lvl.buildFn(); 
+        layoutGraph(s0.G, 40); 
+        const h0 = await calculateStateHash(s0); 
+        s0.hash = h0; 
+        state = s0; 
+        history.push(s0); 
+        historyIndex = 0; 
+        traces.push({ idx:0, op:'Init', args:{}, pre_hash:null, post_hash:h0, type:'Init' }); 
+        draw(); 
+        renderTrace(); 
+        setUIEnabled(true); 
+    }
+    
     async function applyOp(opName, args) {
       if (!uiEnabled) return;
       setUIEnabled(false);
@@ -281,7 +308,6 @@
         case 'Invert': [newState,err] = invert(state, args.v, args.a, args.b); break;
       }
       if (err) {
-        // **LOGIC FIX**: Differentiate between rule violations (warnings) and actual errors.
         if (typeof err === 'object' && err.type === 'RuleViolation') {
             log(`[提示] ${err.message}`, 'warn');
         } else {
@@ -301,8 +327,16 @@
       draw();
       renderTrace();
       const lvl = levels[currentLevelIndex];
-      if (lvl.goalFn(state, traces)) { log('✔️ 关卡完成！', 'success'); }
-      setUIEnabled(true);
+      if (lvl.goalFn(state, traces)) {
+        log('✔️ 关卡完成！', 'success');
+        // **ASYNC REFACTOR**: Use the robust delay to chain the next level load.
+        // The UI remains disabled during the entire transition.
+        await delay(1500);
+        const nxt = (currentLevelIndex + 1) % levels.length;
+        await loadLevel(nxt); // loadLevel will re-enable the UI upon completion.
+      } else {
+        setUIEnabled(true);
+      }
     }
     function undo() { if (!uiEnabled || historyIndex <= 0) return; historyIndex--; state = history[historyIndex].clone(); selectedVertex = null; draw(); renderTrace(); }
     function redo() { if (!uiEnabled || historyIndex >= history.length-1) return; historyIndex++; state = history[historyIndex].clone(); selectedVertex = null; draw(); renderTrace(); }
