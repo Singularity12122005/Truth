@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>四色定理交互式证明</title>
+  <title>游戏式探索四色定理证明</title>
   <style>
     :root {
       --color-gold: #FFD700;
@@ -136,8 +136,8 @@
       <p>请选择两种颜色 (a 与 b)，沿此链进行交换。</p>
       <div id="invertColorSelector"></div>
       <p>已选: <strong id="invertSelection">无</strong></p>
-      <button id="btnInvertConfirm" disabled>确认</button>
-      <button id="btnInvertCancel">取消</button>
+      <button type="button" id="btnInvertConfirm" disabled>确认</button>
+      <button type="button" id="btnInvertCancel">取消</button>
     </div>
   </div>
 
@@ -264,8 +264,8 @@
     registerLevel(new Level( 'L3: 五邻国情形 - 寻找正确的凯普链', '这是证明中的一个典型场景。中心点 X 有五个邻居，但邻居只用了四种颜色，因为顶点 A 和 E 颜色相同（金色）。这导致 X 仍然没有可用颜色。此时，关键在于选择正确的颜色对来构造凯普链。请观察，哪条凯普链可以断开 A 和 E 的颜色连接，从而为 X 腾出空间？提示：请对从 A 或 E 出发的 (金/红) 链进行翻转。', buildL3L4Graph, (state, traces) => { if (!state.isWin()) return false; const didInvert02 = traces.some(r => r.op === 'Invert' && (r.args.v === 'A' || r.args.v === 'E') && ((r.args.a === 0 && r.args.b === 2) || (r.args.a === 2 && r.args.b === 0))); if (!didInvert02) return false; return traces.some(r => r.op === 'Assign' && r.args.v === 'X' && r.args.c === 0); } ));
     registerLevel(new Level( 'L4: 连锁翻转 - 复杂的局面', '真实的证明比单一凯普链更复杂。有时，一次翻转是为了给下一次翻转创造条件。在这个关卡中，你无法一次性为 X 腾出颜色。你需要先执行一次翻转，改变局面，然后再执行第二次翻转，最终才能解决问题。这体现了证明中处理复杂构型时所需的策略深度。请按顺序执行两次指定的翻转操作。', buildL3L4Graph, (state, traces) => { if (!state.isWin()) return false; const idx1 = traces.findIndex(r => r.op === 'Invert' && (r.args.v === 'A' || r.args.v === 'E') && ((r.args.a === 0 && r.args.b === 2) || (r.args.a === 2 && r.args.b === 0))); if (idx1 < 0) return false; const idx2 = traces.findIndex(r => r.op === 'Invert' && r.args.v === 'C' && ((r.args.a === 2 && r.args.b === 3) || (r.args.a === 3 && r.args.b === 2))); if (idx2 < 0 || idx2 <= idx1) return false; return traces.findIndex(r => r.op === 'Assign' && r.args.v === 'X' && r.args.c === 0) > idx2; } ));
     registerLevel(new Level( 'L5: Kempe 的反例', '这是 Kempe 最初证明中的漏洞。此图（Fritsch 反例）本身可四色，但对顶点 6 执行一次特定的凯普链翻转 (金/红)，会意外地导致顶点 1 和 3 颜色冲突。您的任务是：触发这次失败的翻转，亲眼见证 Kempe 论证的百年““bug”。', () => { const g = new Graph(); const V = ['1','2','3','4','5','6']; const P = [[250,50],[150,150],[250,250],[350,250],[350,150],[280,170]]; V.forEach((v,i)=>g.addVertex(v,P[i][0],P[i][1])); const E = [['1','2'],['2','3'],['3','4'],['4','5'],['5','1'],['6','1'],['6','3'],['6','5']]; E.forEach(e=>g.addEdge(e[0],e[1])); const s = new State(g); const PHI = {'1':0,'2':1,'3':2,'4':0,'5':1,'6':3}; for(const id in PHI) s.Phi.set(id, PHI[id]); return s; }, (s, traces) => traces.some(r => r.op === 'AttemptInvert' && r.args.v === '6' && ((r.args.a === 0 && r.args.b === 2)||(r.args.a === 2 && r.args.b === 0))) ));
-    registerLevel(new Level( 'L6: Birkhoff 菱形', 'Birkhoff 菱形是一个典型的“可约构型”。这意味着，任何包含它的地图，其四色性都等价于将这个菱形替换为一个更简单结构后的地图的四色性。请您通过“切除”中心点 x，为剩下的部分着色，再“放回”x 并完成着色，来亲手证明它的可约性。', () => { const g = new Graph(); g.addVertex('x',250,200); g.addVertex('a',150,100); g.addVertex('b',350,100); g.addVertex('c',250,300); g.addVertex('d',100,300); const E = [['x','a'],['x','b'],['a','c'],['b','c'],['c','d'],['d','a']]; E.forEach(e=>g.addEdge(e[0],e[1])); return new State(g); }, (s, traces) => s.isWin() && traces.some(r => r.op === 'Cut' && r.args.v === 'x') && traces.some(r => r.op === 'Return') ));
-    registerLevel(new Level( 'L7: 放电法模拟', '放电法是最终证明的核心。我们将每个顶点视为带电荷的粒子，初始电荷 χ(v) = 6 - deg(v)。目标是通过在邻点间转移电荷（正电荷点可以给邻居“放电”），最终使所有顶点的电荷都 ≥ 0。欧拉公式保证总电荷守恒为 12。请点击“放电”按钮，然后依次点击放电点和接收点来转移电荷。', () => { const g = new Graph(); const n=7; for(let i=0;i<n;i++){ const angle=2*Math.PI*i/n; g.addVertex(i, 250+150*Math.cos(angle), 200+150*Math.sin(angle)); } for(let i=0;i<n;i++){ g.addEdge(i, (i+1)%n); if(i<n-2) g.addEdge(i, (i+2)%n); } const s = new State(g); for (const v of g.V.keys()){ s.chi.set(v, 6 - g.degree(v)); } return s; }, (s) => { if(s.chi.size === 0) return false; let sum=0; for (const v of s.chi.values()){ if(v < 0) return false; sum+=v; } return sum === 12; } ));
+    registerLevel(new Level( 'L6: Birkhoff 菱形', 'Birkhoff 菱形是一个典型的“可约构型”。这意味着，任何包含它的地图，其四色性都等价于将这个菱形替换为一个更简单结构后的地图的四色性。请您通过“切除”中心点 x，为剩下的部分着色，再“放回”x 并完成着色，来亲手证明它的可约性。', () => { const g = new Graph(); g.addVertex('x',250,200); g.addVertex('a',150,100); g.addVertex('b',350,100); g.addVertex('c',250,300); g.addVertex('d',150,300); const E = [['x','a'],['x','b'],['a','c'],['b','c'],['c','d'],['d','a']]; E.forEach(e=>g.addEdge(e[0],e[1])); return new State(g); }, (s, traces) => s.isWin() && traces.some(r => r.op === 'Cut' && r.args.v === 'x') && traces.some(r => r.op === 'Return') ));
+    registerLevel(new Level( 'L7: 放电法模拟', '放电法是最终证明的核心。我们将每个顶点视为带电荷的粒子，初始电荷 χ(v) = 5 - deg(v)。目标是通过在邻点间转移电荷（正电荷点可以给邻居“放电”），最终使所有顶点的电荷都 ≥ 0。欧拉公式保证总电荷守恒。请点击“放电”按钮，然后依次点击放电点和接收点来转移电荷。', () => { const g = new Graph(); const n=8; for(let i=0;i<n;i++){ const angle=2*Math.PI*i/n; g.addVertex(String(i), 250+150*Math.cos(angle), 200+150*Math.sin(angle)); } for(let i=0;i<n;i++){ g.addEdge(String(i), String((i+1)%n)); } g.addVertex('c', 250, 200); for(let i=0;i<n;i++) g.addEdge('c', String(i)); const s = new State(g); for (const v of g.V.keys()){ s.chi.set(v, 5 - g.degree(v)); } return s; }, (s) => { if(s.chi.size === 0) return false; for (const v of s.chi.values()){ if(v < 0) return false; } return true; } ));
     registerLevel(new Level( 'L8: 不可避免集 (概念)', '最终的计算机证明，本质上是找到一个“不可避免集”——一个包含约1500种可约构型的集合，并证明任何地图都必然包含其中至少一个。本关是这一宏伟思想的简化体验。图中包含一个Birkhoff菱形。请依次点击构成该菱形的5个顶点，系统识别后，您需要依次将它们Cut掉，完成归约。', () => { const g = new Graph(); g.addVertex('x',150,120); g.addVertex('a',50,50); g.addVertex('b',250,50); g.addVertex('c',150,220); g.addVertex('d',50,220); const E1 = [['x','a'],['x','b'],['a','c'],['b','c'],['c','d'],['d','a']]; E1.forEach(e=>g.addEdge(e[0],e[1])); g.addVertex('e',350,150); g.addVertex('f',250,250); g.addEdge('b','e'); g.addEdge('c','f'); g.addEdge('e','f'); return new State(g); }, (s) => s.G.V.size === 0 ));
 
     // --- ui/renderer.js ---
@@ -289,7 +289,7 @@
         const lvl = levels[idx]; 
         EL.levelTitle.textContent = lvl.name; 
         EL.meta.innerHTML = lvl.desc.replace(/\(([^)]+)\)/g, '<strong>($1)</strong>'); 
-        EL.buttons.discharge.style.display = lvl.name.includes("Discharging") ? 'inline-block' : 'none';
+        EL.buttons.discharge.style.display = lvl.name.includes("放电法") ? 'inline-block' : 'none';
         traces = []; history = []; historyIndex = -1; 
         selectedVertex = null; 
         EL.log.innerHTML = ''; 
@@ -320,7 +320,6 @@
       if (err) {
         if (typeof err === 'object' && (err.type === 'RuleViolation' || err.type === 'AttemptInvert')) {
             if (err.type === 'AttemptInvert') {
-                historyIndex++;
                 traces.push({ idx: historyIndex, op:'AttemptInvert', args: err.args, pre_hash, post_hash: pre_hash, type:'AttemptInvert' });
                 renderTrace();
             }
@@ -329,7 +328,7 @@
             log(`[错误] ${err}`, 'error');
         }
         const lvl = levels[currentLevelIndex];
-        if(lvl.goalFn(state, traces)) { // Check goal even on failed attempts for L5
+        if(lvl.goalFn(state, traces)) {
             log('✔️ 关卡完成！', 'success');
             await delay(1500);
             const nxt = (currentLevelIndex + 1) % levels.length;
