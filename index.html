@@ -2,122 +2,167 @@
 <html lang="zh-CN" class="bg-gray-100 dark:bg-gray-900 text-gray-800 dark:text-gray-200">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>四色定理交互式证明</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>交互式四色定理证明</title>
+  <!-- TailwindCSS & D3.js -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://d3js.org/d3.v7.min.js"></script>
   <style>
-    /* 基本样式与动画 */
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-    .control-panel button.active { box-shadow:0 0 0 3px rgba(59,130,246,0.5); }
-    .toast { transition:opacity .3s,transform .3s; }
-    .toast.hide { opacity:0; transform:translateY(20px) translateX(-50%); }
-    .node-group:hover>circle { transform:scale(1.1); transition:transform .15s; }
-    .kempe-chain-highlight { stroke:#f59e0b!important; stroke-width:5px!important; stroke-dasharray:8 4; animation:dash 1s linear infinite; }
-    @keyframes dash { to{stroke-dashoffset:-24;} }
+    /*—— 全局样式 & 动画 ——*/
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;
+    }
+    .control-panel button.active {
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.5);
+    }
+    .toast {
+      transition: opacity 0.3s ease, transform 0.3s ease;
+    }
+    .toast.hide {
+      opacity: 0; transform: translateY(20px) translateX(-50%);
+    }
+    .node-group:hover > circle {
+      transform: scale(1.1); transition: transform 0.15s ease-out;
+    }
+    .kempe-chain-highlight {
+      stroke: #f59e0b !important;
+      stroke-width: 5px !important;
+      stroke-dasharray: 8 4;
+      animation: dash 1s linear infinite;
+    }
+    @keyframes dash { to { stroke-dashoffset: -24; } }
   </style>
 </head>
 <body class="flex flex-col md:flex-row h-screen overflow-hidden">
 
-  <!-- 主画布 -->
+  <!--—— 主画布 ——-->
   <main class="flex-1 flex items-center justify-center p-4">
-    <svg id="graphCanvas" width="100%" height="100%" viewBox="0 0 800 600" preserveAspectRatio="xMidYMid meet"></svg>
+    <svg id="graphCanvas" width="100%" height="100%"
+         viewBox="0 0 800 600" preserveAspectRatio="xMidYMid meet"></svg>
   </main>
 
-  <!-- 控制面板 -->
+  <!--—— 控制面板 ——-->
   <aside class="w-full md:w-64 bg-white dark:bg-gray-800 p-4 border-t md:border-t-0 md:border-l border-gray-200 dark:border-gray-700 shadow-lg flex flex-col">
     <h1 class="text-xl font-bold mb-2">四色定理证明</h1>
-    <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">体验从基础到核心的形式化演绎</p>
-    <div id="tutorial-box" class="text-xs bg-blue-50 dark:bg-blue-900/50 text-blue-800 dark:text-blue-200 p-3 rounded-lg mb-4 min-h-[60px]"></div>
-    <div id="actions-box" class="control-panel flex-1 space-y-2"></div>
+    <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">探索世界近代三大数学难题之一之旅</p>
+    
+    <div id="tutorial-box"
+         class="text-xs bg-blue-50 dark:bg-blue-900/50 text-blue-800 dark:text-blue-200 p-3 rounded-lg mb-4 min-h-[60px]">
+      <!-- 教学提示自动注入 -->
+    </div>
+
+    <div id="actions-box" class="control-panel flex-1 space-y-2">
+      <!-- 动态操作按钮注入 -->
+    </div>
+
     <div class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700 space-y-3">
       <h2 class="text-sm font-semibold text-gray-600 dark:text-gray-300">选项</h2>
+      <!-- 瞬时动画切换 -->
       <label class="flex items-center justify-between text-sm cursor-pointer">
         <span>瞬时转换</span>
-        <input type="checkbox" id="instantToggle" class="toggle-switch sr-only peer">
-        <div class="w-11 h-6 bg-gray-200 peer-checked:bg-blue-600 rounded-full relative transition-colors"></div>
+        <input type="checkbox" id="instantToggle" class="sr-only peer">
+        <div class="relative w-11 h-6 bg-gray-200 peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer-checked:bg-blue-600 transition">
+          <div class="after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full"></div>
+        </div>
       </label>
+      <!-- 色盲模式 -->
       <label class="flex items-center justify-between text-sm cursor-pointer">
         <span>色盲模式 (图案)</span>
-        <input type="checkbox" id="patternToggle" class="toggle-switch sr-only peer">
-        <div class="w-11 h-6 bg-gray-200 peer-checked:bg-blue-600 rounded-full relative transition-colors"></div>
+        <input type="checkbox" id="patternToggle" class="sr-only peer">
+        <div class="relative w-11 h-6 bg-gray-200 peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer-checked:bg-blue-600 transition">
+          <div class="after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full"></div>
+        </div>
       </label>
     </div>
+
     <div class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between">
-      <button id="undoBtn" class="text-sm px-3 py-1 bg-gray-200 dark:bg-gray-700 rounded hover:bg-gray-300 dark:hover:bg-gray-600" disabled>撤回 (Ctrl+Z)</button>
-      <button id="redoBtn" class="text-sm px-3 py-1 bg-gray-200 dark:bg-gray-700 rounded hover:bg-gray-300 dark:hover:bg-gray-600" disabled>重做 (Ctrl+Y)</button>
+      <button id="undoBtn"
+              class="text-sm px-3 py-1 bg-gray-200 dark:bg-gray-700 rounded hover:bg-gray-300 dark:hover:bg-gray-600"
+              disabled>撤回 (Ctrl+Z)</button>
+      <button id="redoBtn"
+              class="text-sm px-3 py-1 bg-gray-200 dark:bg-gray-700 rounded hover:bg-gray-300 dark:hover:bg-gray-600"
+              disabled>重做 (Ctrl+Y)</button>
     </div>
   </aside>
 
-  <!-- Toast -->
-  <div id="toast" class="fixed bottom-4 left-1/2 -translate-x-1/2 bg-gray-900 text-white px-4 py-2 rounded-lg shadow-xl text-sm opacity-0 transform translate-y-5 hide"></div>
+  <!--—— Toast 通知 ——-->
+  <div id="toast"
+       class="fixed bottom-4 left-1/2 -translate-x-1/2 bg-gray-900 text-white px-4 py-2 rounded-lg shadow-xl text-sm opacity-0 transform translate-y-5 hide">
+  </div>
 
+  <!--=============================-->
+  <!--== 脚本 1: 引擎核心 Engine ==-->
+  <!--=============================-->
   <script>
-  /************************************************************************
-   * 1. ENGINE CORE                                                       *
-   ************************************************************************/
   (function(exports) {
     'use strict';
-    const SAVE_KEY = '4color_save_v6';
-    const DEBUG = new URLSearchParams(location.search).get('debug')==='true';
 
-    function deepClone(obj, hash=new WeakMap()) {
-      if (Object(obj)!==obj) return obj;
-      if (hash.has(obj)) return hash.get(obj);
-      let result;
-      if (obj instanceof Map) { result=new Map(); hash.set(obj,result); obj.forEach((v,k)=>result.set(deepClone(k,hash),deepClone(v,hash))); return result; }
-      if (obj instanceof Set) { result=new Set(); hash.set(obj,result); obj.forEach(v=>result.add(deepClone(v,hash))); return result; }
-      if (Array.isArray(obj)) { result=[]; hash.set(obj,result); obj.forEach((v,i)=>result[i]=deepClone(v,hash)); return result; }
+    /*** 0. 工具 & 常量 ***/
+    const SAVE_KEY = 'fourColorTheorem_save_v5';
+    const DEBUG = new URLSearchParams(location.search).get('debug') === 'true';
+
+    function deepClone(obj, h = new WeakMap()) {
+      if (Object(obj) !== obj) return obj;
+      if (h.has(obj)) return h.get(obj);
+      let copy;
+      if (obj instanceof Map) {
+        copy = new Map(); h.set(obj, copy);
+        obj.forEach((v,k)=> copy.set(deepClone(k,h),deepClone(v,h)));
+        return copy;
+      }
+      if (obj instanceof Set) {
+        copy = new Set(); h.set(obj,copy);
+        obj.forEach(v=> copy.add(deepClone(v,h)));
+        return copy;
+      }
       if (obj instanceof Date) return new Date(obj);
-      result={}; hash.set(obj,result);
-      for(const k in obj) if(obj.hasOwnProperty(k)) result[k]=deepClone(obj[k],hash);
-      return result;
+      if (Array.isArray(obj)) copy = []; else copy = {};
+      h.set(obj,copy);
+      for (const k in obj) if (obj.hasOwnProperty(k))
+        copy[k] = deepClone(obj[k],h);
+      return copy;
     }
-
-    function saveState(s) {
-      try { localStorage.setItem(SAVE_KEY, JSON.stringify(s)); }
-      catch(e){ console.error('保存失败',e); }
-    }
-    function loadState() {
-      try { return JSON.parse(localStorage.getItem(SAVE_KEY)||'null'); }
-      catch{ return null; }
-    }
-    function clearState(){ localStorage.removeItem(SAVE_KEY); }
 
     class Graph {
       constructor(nodes, edges) {
         this.nodes = nodes.map(n=>({...n}));
         this.edges = edges.map(e=>[...e]);
         this.adj = new Map();
-        this.nodes.forEach(n=>this.adj.set(n.id,new Set()));
-        this.edges.forEach(([u,v])=>{ this.adj.get(u).add(v); this.adj.get(v).add(u); });
+        this.nodes.forEach(n=> this.adj.set(n.id,new Set()));
+        edges.forEach(([u,v])=>{
+          this.adj.get(u).add(v);
+          this.adj.get(v).add(u);
+        });
       }
-      degree(id){ return this.adj.get(id)?.size||0; }
       neighbors(id){ return [...(this.adj.get(id)||[])]; }
-      getNode(id){ return this.nodes.find(n=>n.id===id); }
-      clone(){ return new Graph(this.nodes,this.edges); }
+      degree(id){ return this.adj.get(id)?.size||0; }
+      clone(){ return new Graph(this.nodes, this.edges); }
     }
 
-    // 导出至全局：解决 L3 中作用域问题
-    window.getKempeChain = (G,c,start,k1,k2=>{
-      const q=[start], vis=new Set([start]), chain=[];
+    // 公开工具函数到全局，解决作用域问题
+    function getKempeChain(G, c, start, a, b) {
+      const chain = [], q=[start], vis=new Set([start]);
       while(q.length){
         const u=q.shift(); chain.push(u);
         for(const v of G.neighbors(u)){
-          if(!vis.has(v)&&(c[v]===k1||c[v]===k2)){
+          if(!vis.has(v) && (c[v]===a||c[v]===b)){
             vis.add(v); q.push(v);
           }
         }
       }
       return chain;
-    });
+    }
+    exports.getKempeChain = getKempeChain;
 
-    const ACTIONS = {
-      COLOR_VERTEX: 'COLOR_VERTEX',
-      SELECT_KEMPE_PAIR: 'SELECT_KEMPE_PAIR',
-      FLIP_KEMPE: 'FLIP_KEMPE',
-      _SET_UI_STATE: '_SET_UI_STATE'
-    };
+    /*** 1. 静态关卡数据 ***/
+    const COLORS = [
+      {id:1,fill:'#e74c3c',pattern:'url(#pat-stripes)'},
+      {id:2,fill:'#3498db',pattern:'url(#pat-dots)'},
+      {id:3,fill:'#2ecc71',pattern:'url(#pat-cross)'},
+      {id:4,fill:'#f1c40f',pattern:'url(#pat-grid)'}
+    ];
+    const COLOR_ZERO = '#bdc3c7';
 
     const Graphs = {
       L1_COLORING: {
@@ -125,14 +170,21 @@
         edges:[[0,1],[1,2]]
       },
       L2_INDUCTION: {
-        nodes:[{id:0,x:300,y:200},{id:1,x:500,y:200},{id:2,x:500,y:400},{id:3,x:300,y:400},{id:4,x:400,y:300}],
+        nodes:[
+          {id:0,x:300,y:200},{id:1,x:500,y:200},
+          {id:2,x:500,y:400},{id:3,x:300,y:400},
+          {id:4,x:400,y:300}
+        ],
         edges:[[0,1],[1,2],[2,3],[3,0],[0,4],[1,4],[2,4],[3,4]],
         vStar:4,
-        // 修正 preset：邻居颜色 {1,2,3,1} → 唯一可用 color=4
-        preset:{0:1,1:2,2:3,3:1,4:0}
+        // —— 修复：只用颜色2,3,4给邻居着色，保留1作为默认可用色
+        preset:{0:2,1:3,2:4,3:2,4:0}
       },
       L3_KEMPE: {
-        nodes:[{id:0,x:400,y:150},{id:1,x:550,y:300},{id:2,x:400,y:450},{id:3,x:250,y:300},{id:4,x:400,y:300},{id:5,x:320,y:150},{id:6,x:480,y:150}],
+        nodes:[
+          {id:0,x:400,y:150},{id:1,x:550,y:300},{id:2,x:400,y:450},
+          {id:3,x:250,y:300},{id:4,x:400,y:300},{id:5,x:320,y:150},{id:6,x:480,y:150}
+        ],
         edges:[[0,4],[1,4],[2,4],[3,4],[0,5],[0,6],[5,6]],
         vStar:4,
         preset:{0:1,1:2,2:3,3:4,4:0,5:2,6:3}
@@ -146,234 +198,269 @@
       }
     };
 
+    /*** 2. 引擎核心 ***/
+    const ACTIONS = {
+      COLOR_VERTEX: 'COLOR_VERTEX',
+      SELECT_KEMPE_PAIR: 'SELECT_KEMPE_PAIR',
+      FLIP_KEMPE: 'FLIP_KEMPE',
+      _SET_UI_STATE: '_SET_UI_STATE'
+    };
+
+    function saveState(s){
+      try{ localStorage.setItem(SAVE_KEY, JSON.stringify(s)); }
+      catch(e){ console.error("保存失败", e); }
+    }
+    function loadState(){
+      try{ return JSON.parse(localStorage.getItem(SAVE_KEY)||'null'); }
+      catch{ return null; }
+    }
+    function clearState(){ localStorage.removeItem(SAVE_KEY); }
+
     class GameEngine {
-      constructor(saved=null) {
-        this.subs=[];
-        this.history=[];
-        this.redoStack=[];
-        const loaded = saved||loadState();
-        this.state = loaded||this._bootstrap();
-        if(DEBUG){ window.__GE__=this; console.log('Debug模式'); }
+      constructor() {
+        this.subs = [];
+        this.history = [];
+        this.redoStack = [];
+        const loaded = loadState();
+        if (loaded && loaded.layer) {
+          // 反序列化 Graph
+          if (loaded.sigma.G && !(loaded.sigma.G instanceof Graph))
+            loaded.sigma.G = new Graph(loaded.sigma.G.nodes, loaded.sigma.G.edges);
+          this.state = loaded;
+        } else {
+          this.state = this._bootstrap();
+        }
+        if (DEBUG) window.__GAME_ENGINE__ = this;
       }
-      _bootstrap(){
-        const g=new Graph(Graphs.L1_COLORING.nodes,Graphs.L1_COLORING.edges);
-        const c={}; g.nodes.forEach(n=>c[n.id]=0);
-        return { layer:'L1_COLORING', sigma:{G:g,c:c}, uiState:{currentColor:1,instant:false,usePattern:false} };
+
+      _bootstrap() {
+        const g = new Graph(Graphs.L1_COLORING.nodes, Graphs.L1_COLORING.edges);
+        const c = {}; g.nodes.forEach(n=>c[n.id]=0);
+        return { layer:'L1_COLORING', sigma:{G:g,c:c}, uiState:{currentColor:1, usePattern:false, instant:false} };
       }
+
       subscribe(fn){ this.subs.push(fn); }
       _notify(action){ this.subs.forEach(fn=>fn(this.state,action)); }
-      dispatch(action){
-        const prev=deepClone(this.state);
-        const next=_transition(prev,action);
-        // 仅当真的变更时记录历史
-        if(JSON.stringify(next)!==JSON.stringify(this.state)){
-          this.history.push(this.state);
-          this.redoStack=[];
-          this.state=next;
+
+      dispatch(action) {
+        try {
+          const prev = this.state;
+          const next = _transition(prev, action);
+          if (next !== prev) {
+            this.history.push(deepClone(prev));
+            this.redoStack.length=0;
+            this.state = next;
+            saveState(next);
+          }
+          this._notify(action);
+        } catch(err){
+          console.error("操作失败", err);
+          this._notify({ type:'__ERROR__', payload:err.message });
         }
-        this._notify(action);
-        saveState(this.state);
       }
-      undo(){
-        if(this.history.length===0) return;
-        this.redoStack.push(this.state);
-        this.state=this.history.pop();
+
+      undo() {
+        if (this.history.length===0) return;
+        this.redoStack.push(deepClone(this.state));
+        this.state = this.history.pop();
         this._notify({type:'__UNDO__'});
         saveState(this.state);
       }
-      redo(){
-        if(this.redoStack.length===0) return;
-        this.history.push(this.state);
-        this.state=this.redoStack.pop();
+      redo() {
+        if (this.redoStack.length===0) return;
+        this.history.push(deepClone(this.state));
+        this.state = this.redoStack.pop();
         this._notify({type:'__REDO__'});
         saveState(this.state);
       }
     }
 
     function _transition(state, action) {
-      const s = deepClone(state);
-      const { layer, sigma, uiState } = s;
-      if(action.type===ACTIONS._SET_UI_STATE){
-        return {...s, uiState:{...uiState,...action.payload}};
+      let {layer, sigma, uiState} = state;
+      if (action.type === ACTIONS._SET_UI_STATE) {
+        return {layer, sigma, uiState:{...uiState,...action.payload}};
       }
-      const σ = deepClone(sigma);
+      const newΣ = deepClone(sigma);
+
       switch(action.type){
         case ACTIONS.COLOR_VERTEX:
-          σ.c[action.payload.v]=action.payload.k; break;
-        case ACTIONS.SELECT_KEMPE_PAIR:
-          σ.kempePair=action.payload.pair; break;
-        case ACTIONS.FLIP_KEMPE:
-          const [a,b]=σ.kempePair;
-          action.payload.chain.forEach(v=>{
-            σ.c[v] = σ.c[v]===a?b:a;
-          });
-          σ.kempePair=null;
+          newΣ.c[action.payload.v] = action.payload.k;
           break;
-        default:
-          console.warn('未知 Action:',action);
+        case ACTIONS.SELECT_KEMPE_PAIR:
+          newΣ.kempePair = action.payload.pair;
+          break;
+        case ACTIONS.FLIP_KEMPE:
+          const [a,b] = sigma.kempePair;
+          for(const v of action.payload.chain)
+            newΣ.c[v] = (newΣ.c[v]===a?b:a);
+          newΣ.kempePair = null;
+          break;
       }
-      // Properness 检查
-      for(const [u,v] of σ.G.edges){
-        if(σ.c[u]!==0 && σ.c[u]===σ.c[v]){
-          throw new Error('非法着色：相邻顶点颜色冲突');
-        }
+      // 全局合法性检查：邻接不同色
+      for(const [u,v] of newΣ.G.edges){
+        if (newΣ.c[u]!==0 && newΣ.c[u]===newΣ.c[v])
+          throw new Error("非法着色：相邻顶点颜色相同。");
       }
-      // 检查是否达成本层目标
-      const goals = {
-        L1_COLORING: σ=>Object.values(σ.c).every(x=>x!==0),
-        L2_INDUCTION: σ=>σ.c[Graphs.L2_INDUCTION.vStar]!==0,
-        L3_KEMPE: σ=>σ.c[Graphs.L3_KEMPE.vStar]!==0,
-        L4_REDUCTION: ()=>false
+
+      // 胜利策略：每层过关条件
+      const goalCheck = {
+        L1_COLORING: σ => Object.values(σ.c).every(k=>k!==0),
+        L2_INDUCTION: σ => σ.c[σ.vStar]!==0,
+        L3_KEMPE: σ => σ.c[σ.vStar]!==0,
+        L4_REDUCTION: _=>false
       };
-      if(goals[layer] && goals[layer](σ)){
-        // 自动推进到下一层
-        const order=['L1_COLORING','L2_INDUCTION','L3_KEMPE','L4_REDUCTION','Z_WIN'];
-        const idx=order.indexOf(layer);
-        const next=order[idx+1];
-        let nextSigma;
+      if (goalCheck[layer]?.(newΣ)) {
+        const order = ['L1_COLORING','L2_INDUCTION','L3_KEMPE','L4_REDUCTION','Z_WIN'];
+        const next = order[order.indexOf(layer)+1];
+        let nextΣ;
         switch(next){
           case 'L2_INDUCTION':
-            nextSigma={
-              G:new Graph(Graphs.L2_INDUCTION.nodes,Graphs.L2_INDUCTION.edges),
-              c: deepClone(Graphs.L2_INDUCTION.preset),
-              vStar:Graphs.L2_INDUCTION.vStar
-            };
+            const g2 = new Graph(Graphs.L2_INDUCTION.nodes, Graphs.L2_INDUCTION.edges);
+            nextΣ = {G:g2, c:deepClone(Graphs.L2_INDUCTION.preset), vStar:Graphs.L2_INDUCTION.vStar};
             break;
           case 'L3_KEMPE':
-            nextSigma={
-              G:new Graph(Graphs.L3_KEMPE.nodes,Graphs.L3_KEMPE.edges),
-              c: deepClone(Graphs.L3_KEMPE.preset),
-              vStar:Graphs.L3_KEMPE.vStar,
-              kempePair:null
-            };
+            const g3 = new Graph(Graphs.L3_KEMPE.nodes, Graphs.L3_KEMPE.edges);
+            nextΣ = {G:g3,c:deepClone(Graphs.L3_KEMPE.preset),vStar:Graphs.L3_KEMPE.vStar,kempePair:null};
             break;
           case 'L4_REDUCTION':
-            const g4=new Graph(Graphs.L4_REDUCTION.nodes,Graphs.L4_REDUCTION.edges);
-            const c4={}; g4.nodes.forEach(n=>c4[n.id]=0);
-            nextSigma={G:g4,c:c4};
+            const g4 = new Graph(Graphs.L4_REDUCTION.nodes, Graphs.L4_REDUCTION.edges);
+            const c4 = {}; g4.nodes.forEach(n=>c4[n.id]=0);
+            nextΣ = {G:g4,c:c4};
             break;
           case 'Z_WIN':
-            nextSigma={};
+            nextΣ = {};
             break;
-          default:
-            nextSigma=σ;
         }
-        return { layer:next, sigma:nextSigma, uiState };
+        return {layer:next,sigma:nextΣ,uiState};
       }
-      return { layer, sigma:σ, uiState };
+
+      return {layer, sigma:newΣ, uiState};
     }
 
-    exports.GameEngine=GameEngine;
-    exports.ACTIONS=ACTIONS;
-    exports.clearState=clearState;
+    exports.GameEngine = GameEngine;
+    exports.ACTIONS    = ACTIONS;
+    exports.COLORS     = COLORS;
+    exports.COLOR_ZERO = COLOR_ZERO;
+    exports.clearState = clearState;
+
   })(window);
   </script>
 
+  <!--==================================-->
+  <!--== 脚本 2: 渲染 & 交互 Renderer/UI ==-->
+  <!--==================================-->
   <script>
-  /************************************************************************
-   * 2. RENDERER & UI                                                     *
-   ************************************************************************/
   (function(){
     'use strict';
     const svg = d3.select('#graphCanvas');
-    const toastEl = document.getElementById('toast');
-    let toastTimeout;
+    const Renders = {};
 
-    function pushToast(msg,type='info'){
-      clearTimeout(toastTimeout);
-      toastEl.textContent=msg;
-      toastEl.className='fixed bottom-4 left-1/2 -translate-x-1/2 px-4 py-2 rounded-lg text-sm shadow-xl transition-all';
-      toastEl.classList.add(type==='error'?'bg-red-600':'bg-gray-900');
-      toastEl.classList.remove('hide','opacity-0','translate-y-5');
-      toastTimeout=setTimeout(()=>{
-        toastEl.classList.add('hide','opacity-0','translate-y-5');
-      },3000);
-    }
-
-    const COLORS = [
-      {id:1,fill:'#e74c3c',pattern:'url(#pat-stripes)'},
-      {id:2,fill:'#3498db',pattern:'url(#pat-dots)'},
-      {id:3,fill:'#2ecc71',pattern:'url(#pat-cross)'},
-      {id:4,fill:'#f1c40f',pattern:'url(#pat-grid)'}
-    ];
-    const COLOR_ZERO='#bdc3c7';
-
-    // 初始化 patterns
-    (()=>{
-      if(svg.select('defs').empty()){
-        const defs=svg.append('defs');
-        const addPat=(id,d,sw=1)=>{
-          const p=defs.append('pattern').attr('id',id).attr('patternUnits','userSpaceOnUse').attr('width',8).attr('height',8);
+    const ANIM_DUR = 250, LAYER_DUR = 400;
+    // 定义 SVG patterns
+    (function(){
+      if (svg.select('defs').empty()) {
+        const defs = svg.append('defs');
+        const addPat = (id,d) => {
+          const p = defs.append('pattern').attr('id',id)
+                      .attr('patternUnits','userSpaceOnUse').attr('width',8).attr('height',8);
           p.append('rect').attr('width',8).attr('height',8).attr('fill','rgba(255,255,255,0.9)');
-          p.append('path').attr('d',d).attr('stroke','#333').attr('stroke-width',sw).attr('stroke-linecap','square');
+          p.append('path').attr('d',d).attr('stroke','#333').attr('stroke-width',1);
         };
         addPat('pat-stripes','M-2,2 L2,-2 M0,8 L8,0 M6,10 L10,6');
-        addPat('pat-dots','M2,2 H2 V2 M6,6 H6 V6',2);
+        addPat('pat-dots','M2,2 H2 V2 M6,6 H6 V6');
         addPat('pat-cross','M0,0L8,8 M8,0L0,8');
         addPat('pat-grid','M4,0 V8 M0,4 H8');
       }
     })();
 
-    function getFill(k,ui){
-      if(k===0) return COLOR_ZERO;
-      const c=COLORS.find(x=>x.id===k);
-      return ui.usePattern?c.pattern:c.fill;
+    function getFill(k,ui){ 
+      if (k===0) return window.COLOR_ZERO;
+      const cd = window.COLORS.find(c=>c.id===k);
+      return ui.usePattern ? cd.pattern : cd.fill;
     }
 
-    const RENDERERS={};
-
     function render(state,action){
-      if(!state) return;
-      const {layer,sigma,uiState}=state;
-      const fn=RENDERERS[layer]||RENDERERS.Z_WIN;
-      try{
-        fn(sigma,uiState);
+      if (!state) return;
+      try {
+        const {layer,sigma,uiState} = state;
+        const isTrans = ENGINE.history.length>0 &&
+                        ENGINE.history[ENGINE.history.length-1].layer !== layer;
+        const draw = Renders[layer]||Renders.Z_WIN;
+        if (isTrans) {
+          svg.transition().duration(uiState.instant?0:LAYER_DUR)
+             .style('opacity',0)
+             .on('end',()=>{
+               if (ENGINE.getState().layer===layer) {
+                 draw(sigma,uiState);
+                 svg.transition().duration(uiState.instant?0:LAYER_DUR)
+                    .style('opacity',1);
+               }
+             });
+        } else {
+          draw(sigma,uiState);
+        }
         updateTutorial(layer);
         updateUndoRedo();
-        if(action?.type==='__ERROR__') pushToast(action.payload,'error');
-      }catch(e){
-        console.error('渲染错误',e);
-        pushToast('渲染时出错，请查看控制台','error');
+        if (action?.type==='__ERROR__') pushToast(action.payload,'error');
+      } catch(e) {
+        console.error(e);
+        pushToast('渲染错误，请查看控制台','error');
       }
     }
 
+    // 通用渲染器
     function createRenderer(layerId){
       return (σ,ui)=>{
+        const {G,c,vStar,kempePair} = σ;
         svg.selectAll('*').remove();
-        const G=σ.G, c=σ.c, vStar=σ.vStar, kp=σ.kempePair;
-
         // 边
-        svg.append('g').selectAll('line').data(G.edges).join('line')
-          .attr('x1',d=>G.getNode(d[0]).x).attr('y1',d=>G.getNode(d[0]).y)
-          .attr('x2',d=>G.getNode(d[1]).x).attr('y2',d=>G.getNode(d[1]).y)
+        svg.append('g').selectAll('line')
+          .data(G.edges).join('line')
+          .attr('x1',d=>G.nodes.find(n=>n.id===d[0]).x)
+          .attr('y1',d=>G.nodes.find(n=>n.id===d[0]).y)
+          .attr('x2',d=>G.nodes.find(n=>n.id===d[1]).x)
+          .attr('y2',d=>G.nodes.find(n=>n.id===d[1]).y)
           .attr('stroke','#9ca3af').attr('stroke-width',3);
 
         // 节点
-        const ng=svg.append('g').selectAll('g').data(G.nodes,d=>d.id).join(
-          enter=>{
-            const g=enter.append('g').attr('class','node-group').style('opacity',0);
-            g.append('circle').attr('r',24).attr('stroke','#374151').attr('stroke-width',2);
-            g.append('text').attr('text-anchor','middle').attr('dy','.35em').attr('fill','#1f2937').text(d=>d.id);
-            g.transition().duration(ui.instant?0:200).style('opacity',1);
-            return g;
-          }
-        );
-        ng.attr('transform',d=>`translate(${d.x},${d.y})`).style('cursor','pointer')
+        const ng = svg.append('g').selectAll('g')
+          .data(G.nodes, d=>d.id).join(
+            enter=>{
+              const g = enter.append('g').attr('class','node-group').style('opacity',0);
+              g.append('circle').attr('r',24).attr('stroke','#374151').attr('stroke-width',2);
+              g.append('text').attr('text-anchor','middle').attr('dy','.35em').attr('fill','#1f2937')
+               .text(d=>d.id);
+              g.transition().duration(ui.instant?0:ANIM_DUR).style('opacity',1);
+              return g;
+            },
+            update=>update,
+            exit=>exit.remove()
+          );
+
+        ng.attr('transform',d=>`translate(${d.x},${d.y})`)
+          .style('cursor',d=>
+            layerId==='L3_KEMPE' && kempePair && (c[d.id]===kempePair[0]||c[d.id]===kempePair[1])
+            ? 'crosshair' : 'pointer'
+          )
           .on('click',(e,d)=>{
-            if(layerId==='L3_KEMPE'&&kp){
-              const chain=window.getKempeChain(G,c,d.id,kp[0],kp[1]);
-              ENGINE.dispatch({type:ACTIONS.FLIP_KEMPE,payload:{chain}});
-            }else{
-              ENGINE.dispatch({type:ACTIONS.COLOR_VERTEX,payload:{v:d.id,k:ui.currentColor}});
+            if(layerId==='L3_KEMPE' && kempePair && (c[d.id]===kempePair[0]||c[d.id]===kempePair[1])){
+              const chain = window.getKempeChain(G,c,d.id,kempePair[0],kempePair[1]);
+              ENGINE.dispatch({type:window.ACTIONS.FLIP_KEMPE,payload:{chain}});
+            } else {
+              ENGINE.dispatch({type:window.ACTIONS.COLOR_VERTEX,payload:{v:d.id,k:ui.currentColor}});
             }
           });
 
-        // Kempe链高亮
+        // Kempe 悬停高亮
         if(layerId==='L3_KEMPE'){
           ng.on('mouseover',(e,d)=>{
-            if(!σ.kempePair) return;
-            const [a,b]=σ.kempePair, chain=new Set(window.getKempeChain(G,c,d.id,a,b));
-            ng.select('circle').classed('kempe-chain-highlight',n=>chain.has(n.id));
+            if(!kempePair) return;
+            const [a,b]=kempePair;
+            if(c[d.id]===a||c[d.id]===b){
+              const chain = window.getKempeChain(G,c,d.id,a,b);
+              const set=new Set(chain);
+              ng.select('circle').classed('kempe-chain-highlight',n=>set.has(n.id));
+            }
           }).on('mouseout',()=>ng.select('circle').classed('kempe-chain-highlight',false));
         }
 
@@ -382,94 +469,103 @@
           .attr('stroke',d=>d.id===vStar?'#0ea5e9':'#374151')
           .attr('stroke-width',d=>d.id===vStar?4:2)
           .attr('stroke-dasharray',d=>d.id===vStar?'6 3':null)
-          .transition().duration(ui.instant?0:200)
+          .transition().duration(ui.instant?0:ANIM_DUR)
           .attr('fill',d=>getFill(c[d.id],ui));
 
         drawActions(layerId,σ,ui);
       };
     }
 
-    RENDERERS.L1_COLORING = createRenderer('L1_COLORING');
-    RENDERERS.L2_INDUCTION = createRenderer('L2_INDUCTION');
-    RENDERERS.L3_KEMPE     = createRenderer('L3_KEMPE');
-    RENDERERS.L4_REDUCTION = createRenderer('L4_REDUCTION');
-    RENDERERS.Z_WIN        = (σ,ui)=>{
+    Renders.L1_COLORING    = createRenderer('L1_COLORING');
+    Renders.L2_INDUCTION   = createRenderer('L2_INDUCTION');
+    Renders.L3_KEMPE       = createRenderer('L3_KEMPE');
+    Renders.L4_REDUCTION   = createRenderer('L4_REDUCTION');
+
+    Renders.Z_WIN = ()=>{
       svg.selectAll('*').remove();
-      const t=svg.append('text').attr('x','50%').attr('y','50%')
-        .attr('text-anchor','middle').attr('dominant-baseline','middle');
-      t.append('tspan').attr('x','50%').attr('dy','-0.5em').attr('font-size','48px').attr('fill','#10b981').text('🎉');
-      t.append('tspan').attr('x','50%').attr('dy','1.2em').attr('font-size','24px').attr('font-weight','bold').text('证明完成');
-      t.append('tspan').attr('x','50%').attr('dy','1.5em').attr('font-size','16px').attr('fill','#6b7280').text('您已掌握四色定理核心思想。');
-      drawActions('Z_WIN',σ,ui);
+      svg.append('text').attr('x','50%').attr('y','50%')
+         .attr('text-anchor','middle').attr('dominant-baseline','middle')
+         .html('🎉<tspan x="50%" dy="1.2em" font-size="24">证明完成</tspan>')
+         .attr('fill','#10b981');
+      drawActions('Z_WIN');
     };
 
-    const tutorials = {
-      L1_COLORING:'L1：基础着色——为所有顶点着色，相邻不同色。',
-      L2_INDUCTION:'L2：归纳法——新顶点唯一可选颜色4，请选色后点击它。',
-      L3_KEMPE:'L3：Kempe链——选一对颜色，点击链上顶点翻转。',
-      L4_REDUCTION:'L4：最后挑战——复杂图中完成四色证明。',
-      Z_WIN:'恭喜！您完成了交互式四色定理证明。'
-    };
-    function updateTutorial(layer){
-      document.getElementById('tutorial-box').textContent = tutorials[layer]||'';
+    /*—— 控制面板 & 教学提示 ——*/
+    const actionsBox  = document.getElementById('actions-box');
+    const tutorialBox = document.getElementById('tutorial-box');
+    const toastEl     = document.getElementById('toast');
+    let toastTO;
+
+    function pushToast(msg,type='info'){
+      clearTimeout(toastTO);
+      toastEl.textContent=msg;
+      toastEl.className=`fixed bottom-4 left-1/2 -translate-x-1/2 text-white px-4 py-2 rounded-lg shadow-xl text-sm
+                         ${type==='error'?'bg-red-600':'bg-gray-900'} remove-span`;
+      toastEl.classList.remove('hide','opacity-0','translate-y-5');
+      toastTO=setTimeout(()=>toastEl.classList.add('hide','opacity-0','translate-y-5'),3000);
     }
 
-    const actionsBox = document.getElementById('actions-box');
+    const TUTORIALS = {
+      L1_COLORING: '目标：合法着色整个路径图。',
+      L2_INDUCTION: '归纳步骤：为新顶点着色（默认颜色1可用）。',
+      L3_KEMPE: 'Kempe链：选定一对颜色，再点击链上的顶点翻转。',
+      L4_REDUCTION: '最终挑战：运用全部技巧完成着色。',
+      Z_WIN: '恭喜！您已完整演绎四色定理证明。'
+    };
+    function updateTutorial(layer){
+      tutorialBox.textContent = TUTORIALS[layer]||'';
+    }
+
+    function drawPalette(ui){
+      const grid=document.createElement('div');
+      grid.className='grid grid-cols-2 gap-2';
+      window.COLORS.forEach(col=>{
+        const btn=document.createElement('button');
+        btn.className='w-full py-2 rounded-md text-white text-sm font-semibold';
+        btn.style.backgroundColor=col.fill;
+        btn.textContent=`颜色 ${col.id}`;
+        btn.onclick=()=>ENGINE.dispatch({type:window.ACTIONS._SET_UI_STATE,payload:{currentColor:col.id}});
+        if(ui.currentColor===col.id){
+          btn.classList.add('ring-2','ring-blue-500');
+        }
+        grid.appendChild(btn);
+      });
+      actionsBox.appendChild(grid);
+    }
+
     function drawActions(layer,σ,ui){
       actionsBox.innerHTML='';
-      const makePalette=()=>{
-        const cDiv=document.createElement('div'); cDiv.className='grid grid-cols-2 gap-2';
-        COLORS.forEach(col=>{
-          const btn=document.createElement('button');
-          btn.className='w-full py-2 rounded-md text-white font-semibold';
-          btn.style.backgroundColor=col.fill;
-          btn.textContent=`颜色 ${col.id}`;
-          btn.onclick=()=>ENGINE.dispatch({type:ACTIONS._SET_UI_STATE,payload:{currentColor:col.id}});
-          if(ui.currentColor===col.id) btn.classList.add('ring-2','ring-blue-500');
-          cDiv.appendChild(btn);
-        });
-        actionsBox.appendChild(cDiv);
-      };
-
       switch(layer){
         case 'L1_COLORING':
         case 'L2_INDUCTION':
         case 'L4_REDUCTION':
-          makePalette(); break;
-
+          drawPalette(ui); break;
         case 'L3_KEMPE':
-          makePalette();
+          drawPalette(ui);
           const grid=document.createElement('div');
           grid.className='grid grid-cols-3 gap-2 mt-4';
           const pairs=[];
           for(let i=0;i<COLORS.length;i++){
-            for(let j=i+1;j<COLORS.length;j++){
-              pairs.push([COLORS[i],COLORS[j]]);
-            }
+            for(let j=i+1;j<COLORS.length;j++) pairs.push([COLORS[i],COLORS[j]]);
           }
           pairs.forEach(([c1,c2])=>{
             const b=document.createElement('button');
             b.className='w-full h-8 border-2 rounded-md flex items-center justify-center gap-1';
-            b.innerHTML=`<div class="w-4 h-4 rounded-full" style="background:${c1.fill}"></div>
-                         <div class="w-4 h-4 rounded-full" style="background:${c2.fill}"></div>`;
-            b.onclick=()=>ENGINE.dispatch({type:ACTIONS.SELECT_KEMPE_PAIR,payload:{pair:[c1.id,c2.id]}});
             if(σ.kempePair && σ.kempePair[0]===c1.id && σ.kempePair[1]===c2.id){
               b.classList.add('border-blue-500','ring-2','ring-blue-500');
-            } else {
-              b.classList.add('border-gray-300');
-            }
+            } else b.classList.add('border-gray-300');
+            b.innerHTML=`<span class="w-4 h-4 rounded-full" style="background:${c1.fill}"></span>
+                         <span class="w-4 h-4 rounded-full" style="background:${c2.fill}"></span>`;
+            b.onclick=()=>ENGINE.dispatch({type:window.ACTIONS.SELECT_KEMPE_PAIR,payload:{pair:[c1.id,c2.id]}});
             grid.appendChild(b);
           });
           actionsBox.appendChild(grid);
           break;
-
         case 'Z_WIN':
           const btn=document.createElement('button');
-          btn.className='w-full bg-green-600 text-white py-2 rounded-md font-bold';
-          btn.textContent='重新开始';
-          btn.onclick=()=>{ clearState(); location.reload(); };
+          btn.className='w-full bg-green-600 text-white py-2 rounded-md text-sm font-bold';
+          btn.textContent='重新开始'; btn.onclick=()=>{window.clearState();location.reload();};
           actionsBox.appendChild(btn);
-          break;
       }
     }
 
@@ -478,22 +574,24 @@
       document.getElementById('redoBtn').disabled = ENGINE.redoStack.length===0;
     }
 
-    document.getElementById('instantToggle').onchange = e=>{
-      ENGINE.dispatch({type:ACTIONS._SET_UI_STATE,payload:{instant:e.target.checked}});
-    };
-    document.getElementById('patternToggle').onchange = e=>{
-      ENGINE.dispatch({type:ACTIONS._SET_UI_STATE,payload:{usePattern:e.target.checked}});
-    };
+    /*—— 按钮 & 快捷键 ——*/
+    const ENGINE = new window.GameEngine();
+    document.getElementById('instantToggle').onchange = e=>
+      ENGINE.dispatch({type:window.ACTIONS._SET_UI_STATE,payload:{instant:e.target.checked}});
+    document.getElementById('patternToggle').onchange = e=>
+      ENGINE.dispatch({type:window.ACTIONS._SET_UI_STATE,payload:{usePattern:e.target.checked}});
     document.getElementById('undoBtn').onclick = ()=>ENGINE.undo();
     document.getElementById('redoBtn').onclick = ()=>ENGINE.redo();
     window.addEventListener('keydown',e=>{
-      if((e.ctrlKey||e.metaKey)&&e.key==='z'){ e.preventDefault(); ENGINE.undo(); }
-      if((e.ctrlKey||e.metaKey)&&e.key==='y'){ e.preventDefault(); ENGINE.redo(); }
+      if(e.ctrlKey||e.metaKey){
+        if(e.key==='z'){ e.preventDefault(); ENGINE.undo(); }
+        if(e.key==='y'){ e.preventDefault(); ENGINE.redo(); }
+      }
     });
 
-    const ENGINE = new window.GameEngine();
+    // 初始渲染
     ENGINE.subscribe(render);
-    render(ENGINE.state);
+    render(ENGINE.getState());
 
   })();
   </script>
