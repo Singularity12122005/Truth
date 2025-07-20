@@ -1,524 +1,921 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1.0" />
-<title>逻辑的边界 (The Boundary of Logic) - 修复原型</title>
-<style>
-:root {
-  --background-color:#0F1115;
-  --canvas-bg:#111827;
-  --text-color:#E5E7EB;
-  --border-color:#374151;
-  --primary-accent:#3B82F6;
-  --highlight-accent:#FBBF24;
-  --error-accent:#EF4444;
-  --ok-accent:#10B981;
-  --neutral-gray:#4A5568;
-}
-html,body {margin:0;padding:0;height:100%;width:100%;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;background:var(--background-color);color:var(--text-color);display:flex;align-items:center;justify-content:center;overflow:hidden;}
-#game-container {position:relative;box-shadow:0 0 30px rgba(0,0,0,.7);background:var(--canvas-bg);border:1px solid var(--border-color);}
-#game-container.frozen {pointer-events:none;}
-#game-canvas {display:block;outline:none;}
-#ui-panel {position:absolute;top:15px;left:15px;background:rgba(15,17,21,.88);backdrop-filter:blur(5px);border:1px solid var(--border-color);padding:12px 14px;border-radius:10px;min-width:220px;user-select:none;font-size:13px;}
-#ui-panel h2 {margin:0 0 8px;font-size:17px;font-weight:600;border-bottom:1px solid var(--border-color);padding-bottom:6px;}
-.section-label {margin:10px 0 4px;font-size:11px;letter-spacing:.5px;text-transform:uppercase;color:#9CA3AF;}
-.color-palette {display:flex;flex-wrap:wrap;margin:2px -4px 4px;}
-.color-palette button {width:34px;height:34px;border-radius:50%;border:2px solid var(--text-color);margin:4px;cursor:pointer;transition:transform .16s cubic-bezier(.4,0,.2,1),box-shadow .16s;position:relative;outline:none;background-clip:padding-box;}
-.color-palette button:hover {transform:scale(1.15);} 
-.color-palette button.selected {border-color:var(--highlight-accent);box-shadow:0 0 12px var(--highlight-accent);transform:scale(1.1);} 
-.color-palette button:focus-visible {box-shadow:0 0 0 3px rgba(59,130,246,.55);} 
-#operator-panel {display:flex;flex-wrap:wrap;gap:6px;margin-top:4px;}
-#operator-panel button {background:#1F2937;color:var(--text-color);border:1px solid var(--border-color);padding:4px 10px;border-radius:6px;cursor:pointer;font-size:12px;letter-spacing:.5px;transition:background .18s,box-shadow .18s,border-color .18s;}
-#operator-panel button.active {background:var(--primary-accent);border-color:var(--primary-accent);}
-#operator-panel button:disabled {opacity:.35;cursor:not-allowed;}
-#operator-panel button:not(:disabled):hover {background:#2563EB;}
-.inline-badge {display:inline-block;padding:1px 6px;background:#1F2937;border:1px solid var(--border-color);border-radius:4px;font-size:10px;margin-left:6px;}
-#message-bar {position:absolute;bottom:20px;left:50%;transform:translateX(-50%);background:rgba(15,17,21,.92);backdrop-filter:blur(6px);padding:10px 24px;border-radius:10px;border:1px solid var(--border-color);font-size:14px;max-width:760px;line-height:1.35;display:flex;align-items:center;gap:12px;}
-#message-bar.error {color:var(--error-accent);border-color:var(--error-accent);} 
-#message-bar.success {color:var(--ok-accent);border-color:var(--ok-accent);} 
-#history-panel {max-height:140px;overflow:auto;margin-top:6px;font-family:ui-monospace,monospace;font-size:11px;line-height:1.25;background:#0B0D10;border:1px solid var(--border-color);padding:6px 8px;border-radius:6px;}
-#history-panel::-webkit-scrollbar {width:8px;}#history-panel::-webkit-scrollbar-thumb {background:#1F2937;border-radius:4px;}
-.log-entry {white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:1px 0;}
-.log-entry span.op {color:var(--primary-accent);} 
-#analytics-panel {margin-top:6px;font-size:11px;color:#9CA3AF;display:grid;grid-template-columns:auto auto;column-gap:10px;row-gap:2px;}
-#modal-overlay {position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;z-index:40;}
-#modal {background:#111827;border:1px solid var(--border-color);padding:24px 28px;border-radius:12px;max-width:680px;font-size:14px;line-height:1.5;}
-#modal h3 {margin-top:0;font-size:20px;}
-#close-modal {margin-top:16px;background:#1F2937;color:var(--text-color);border:1px solid var(--border-color);padding:6px 14px;border-radius:7px;cursor:pointer;}
-#close-modal:hover {background:#374151;}
-:focus-visible {outline:2px solid var(--highlight-accent);outline-offset:2px;}
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>四色定理：演绎迷踪 (Q.E.D. Project)</title>
+  <!-- TailwindCSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --c1: #ef4444; /* red-500 */
+      --c2: #3b82f6; /* blue-500 */
+      --c3: #22c55e; /* green-500 */
+      --c4: #eab308; /* yellow-500 */
+      --c-uncolored: #9ca3af; /* gray-400 */
+      --c-uncolored-bg: #f3f4f6; /* gray-100 */
+    }
+    body {
+      font-family: 'Noto Sans SC', sans-serif;
+      overscroll-behavior: none;
+    }
+    .graph-canvas {
+      touch-action: none;
+      cursor: grab;
+    }
+    .vertex {
+      transition: all 0.3s ease;
+      cursor: pointer;
+    }
+    .vertex:hover {
+      transform: scale(1.2);
+      filter: brightness(1.1);
+    }
+    .vertex.selected {
+      stroke: #a855f7;
+      stroke-width: 6px;
+      filter: drop-shadow(0 0 8px #a855f7);
+    }
+    .edge {
+      transition: all 0.3s ease;
+      stroke: #4b5563;
+      stroke-width: 3;
+    }
+    .edge.conflict {
+      stroke: #f43f5e;
+      stroke-width: 5px;
+      animation: pulse 1s infinite;
+    }
+    .kempe-chain {
+      animation: kempe-flow 2s linear infinite;
+    }
+    @keyframes kempe-flow {
+      from { stroke-dashoffset: 20; }
+      to { stroke-dashoffset: 0; }
+    }
+    @keyframes pulse {
+      0%,100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+    .trace-step {
+      transition: background-color 0.3s;
+    }
+    .trace-step.dep-source {
+      animation: dep-pulse-source 1.5s infinite;
+    }
+    .trace-step.dep-blocked {
+      animation: dep-pulse-blocked 1.5s infinite;
+    }
+    @keyframes dep-pulse-source {
+      0%,100% { background-color: rgba(34,197,94,0.3); }
+      50% { background-color: rgba(34,197,94,0.1); }
+    }
+    @keyframes dep-pulse-blocked {
+      0%,100% { background-color: rgba(239,68,68,0.3); }
+      50% { background-color: rgba(239,68,68,0.1); }
+    }
+  </style>
 </head>
-<body>
-<!-- SVG pattern defs for future direct SVG rendering (canvas uses procedural patterns) -->
-<svg width="0" height="0" style="position:absolute">
-  <defs>
-    <pattern id="pattern-C1" patternUnits="userSpaceOnUse" width="8" height="8"><path d="M-2,2 l4,-4 M0,8 l8,-8 M6,10 l4,-4" stroke="#E5E7EB" stroke-width="1" fill="none"/></pattern>
-    <pattern id="pattern-C2" patternUnits="userSpaceOnUse" width="10" height="10"><circle cx="5" cy="5" r="2" fill="#E5E7EB"/></pattern>
-    <pattern id="pattern-C3" patternUnits="userSpaceOnUse" width="6" height="6"><path d="M0,6 l6,-6 M-1,1 l2,-2 M5,7 l2,-2" stroke="#E5E7EB" stroke-width="1.2" fill="none"/></pattern>
-    <pattern id="pattern-C4" patternUnits="userSpaceOnUse" width="4" height="4"><path d="M-1,2 l6,0" stroke="#E5E7EB" stroke-width="1" fill="none"/></pattern>
-  </defs>
-</svg>
+<body class="bg-gray-900 text-gray-100 flex flex-col h-screen overflow-hidden">
 
-<div id="game-container" aria-label="四色定理交互证明原型">
-  <canvas id="game-canvas" tabindex="0" aria-label="游戏地图画布"></canvas>
-  <div id="ui-panel" role="complementary" aria-label="控制面板">
-    <h2 id="level-name"></h2>
-    <div class="section-label">颜色 (Color)</div>
-    <div id="color-palette" class="color-palette" role="radiogroup" aria-label="颜色选择"></div>
-    <div class="section-label">算子 (Operators)</div>
-    <div id="operator-panel" aria-label="可用算子"></div>
-    <div class="section-label">历史 (History)</div>
-    <div id="history-panel" aria-label="操作历史日志"></div>
-    <div class="section-label">状态 (State)</div>
-    <div id="analytics-panel"></div>
-  </div>
-  <div id="message-bar" role="status" aria-live="polite"><span id="message-text"></span></div>
-</div>
+  <!-- Header -->
+  <header class="bg-gray-800/50 backdrop-blur-sm p-3 flex justify-between items-center shadow-lg z-10">
+    <div>
+      <h1 class="text-xl font-bold">四色定理：演绎迷踪</h1>
+      <p class="text-sm text-gray-400">Project Q.E.D. - An Interactive Formal Proof</p>
+    </div>
+    <div id="level-selector" class="flex items-center gap-2">
+      <span class="text-gray-400">关卡:</span>
+      <!-- Buttons injected by JS -->
+    </div>
+  </header>
 
-<div id="modal-overlay" role="dialog" aria-modal="true" aria-hidden="true">
-  <div id="modal">
-    <h3>依赖说明 (Operator Dependency)</h3>
-    <div id="modal-body"></div>
-    <button id="close-modal">关闭</button>
-  </div>
-</div>
+  <!-- Main Content -->
+  <main class="flex-1 flex overflow-hidden">
 
-<script type="module">
-// =====================================================================================
-// SECTION 0: CONFIG & GLOBAL CONSTANTS
-// =====================================================================================
-const DEV_MODE = true; // 开发模式: 额外断言 & 日志
-const ENABLE_FUTURE_OPERATORS = true; // 占位: 未来启用 cut/inv 等
+    <!-- Left Panel -->
+    <aside class="w-1/3 max-w-md bg-gray-800/30 p-4 flex flex-col space-y-4 overflow-y-auto">
 
-const COLORS = Object.freeze({
-  C1: { id:'C1', hex:'#3B82F6', name:'蓝色', patternId:'pattern-C1' },
-  C2: { id:'C2', hex:'#10B981', name:'绿色', patternId:'pattern-C2' },
-  C3: { id:'C3', hex:'#F59E0B', name:'黄色', patternId:'pattern-C3' },
-  C4: { id:'C4', hex:'#EF4444', name:'红色',  patternId:'pattern-C4' }
-});
-const COLOR_IDS = Object.keys(COLORS);
+      <!-- Operator Panel -->
+      <section>
+        <h2 class="text-lg font-semibold mb-2 border-b-2 border-gray-700 pb-1">算子面板 (Operators)</h2>
+        <div id="operator-panel" class="grid grid-cols-2 gap-2">
+          <div id="color-palette" class="col-span-2 grid grid-cols-4 gap-2">
+            <button data-color="c1" class="p-4 rounded-lg bg-red-500 hover:bg-red-600 disabled:bg-gray-600 transition"></button>
+            <button data-color="c2" class="p-4 rounded-lg bg-blue-500 hover:bg-blue-600 disabled:bg-gray-600 transition"></button>
+            <button data-color="c3" class="p-4 rounded-lg bg-green-500 hover:bg-green-600 disabled:bg-gray-600 transition"></button>
+            <button data-color="c4" class="p-4 rounded-lg bg-yellow-500 hover:bg-yellow-600 disabled:bg-gray-600 transition"></button>
+          </div>
+          <button id="op-cut" class="p-2 bg-purple-600 hover:bg-purple-700 rounded-lg disabled:bg-gray-600 transition">Cut(v)</button>
+          <button id="op-return" class="p-2 bg-purple-600 hover:bg-purple-700 rounded-lg disabled:bg-gray-600 transition">Return</button>
+          <button id="op-invert" class="p-2 bg-teal-600 hover:bg-teal-700 rounded-lg disabled:bg-gray-600 transition">Invert(K)</button>
+          <button id="op-undo" class="p-2 bg-gray-500 hover:bg-gray-600 rounded-lg disabled:bg-gray-600 transition">Undo</button>
+        </div>
+        <div id="invert-panel" class="hidden mt-4 p-3 bg-gray-700/50 rounded-lg">
+          <h3 class="text-md font-medium mb-2">选择 Kempe 链颜色对:</h3>
+          <div id="invert-color-selector" class="grid grid-cols-4 gap-2"></div>
+          <button id="invert-confirm" class="w-full mt-2 p-2 bg-teal-500 hover:bg-teal-600 rounded-lg disabled:bg-gray-600">确认交换</button>
+          <button id="invert-cancel" class="w-full mt-2 p-2 bg-gray-500 hover:bg-gray-600 rounded-lg">取消</button>
+        </div>
+        <div id="report-panel" class="hidden mt-4 p-3 bg-rose-900/50 rounded-lg">
+          <h3 class="text-md font-medium mb-2 text-rose-300">分析报告：依赖性冲突</h3>
+          <p id="report-text" class="text-sm mb-3"></p>
+          <button id="report-submit" class="w-full p-2 bg-rose-600 hover:bg-rose-700 rounded-lg">提交报告，确认理解</button>
+        </div>
+      </section>
 
-// Level definition schema (可扩展: prerequisites / narrative / unlockOperators)
-const level1Data = {
-  id: 'level-1.0',
-  name: '五邻之初 (5-Neighbor Start)',
-  objective: '找到一个合法的四色染色 (演示基础合法性)。',
-  graph: {
-    // 顶点 (平面嵌入: 归一化坐标)
-    vertices: [
-      { id:0, position:{x:0.50,y:0.50} },
-      { id:1, position:{x:0.50,y:0.16} },
-      { id:2, position:{x:0.81,y:0.41} },
-      { id:3, position:{x:0.68,y:0.83} },
-      { id:4, position:{x:0.31,y:0.83} },
-      { id:5, position:{x:0.18,y:0.41} }
-    ],
-    // 国家: ID -> 顶点环
-    countries: {
-      100: [1,5,0,2],
-      101: [2,0,3],
-      102: [3,0,4],
-      103: [4,0,5],
-      104: [5,1,2,3,4] // 中央复杂区
-    },
-    // 邻接(国家图的旋转系统局部): 保证对称
-    embedding: {
-      100:[103,104,101],
-      101:[100,104,102],
-      102:[101,104,103],
-      103:[102,104,100],
-      104:[100,101,102,103]
+      <!-- Induction Stack -->
+      <section>
+        <h2 class="text-lg font-semibold mb-2 border-b-2 border-gray-700 pb-1">归纳栈 (Stack)</h2>
+        <div id="induction-stack" class="bg-gray-900/50 p-2 rounded-lg min-h-[50px] text-center text-gray-500">空</div>
+      </section>
+
+      <!-- Proof Trace -->
+      <section class="flex-1 flex flex-col">
+        <h2 class="text-lg font-semibold mb-2 border-b-2 border-gray-700 pb-1">证明轨迹 (Proof Trace)</h2>
+        <div id="proof-trace" class="flex-1 bg-gray-900/50 p-2 rounded-lg overflow-y-auto space-y-1">
+          <!-- injected by JS -->
+        </div>
+      </section>
+
+    </aside>
+
+    <!-- Right Panel -->
+    <div class="flex-1 flex flex-col p-4">
+      <div id="info-bar" class="mb-4 p-3 bg-gray-800/50 rounded-lg shadow-md text-center">
+        <p id="info-text" class="text-lg text-gray-300">选择一个顶点再执行操作。</p>
+      </div>
+      <div class="flex-1 bg-gray-800 rounded-lg shadow-inner overflow-hidden relative">
+        <svg id="graph-canvas" class="w-full h-full graph-canvas"></svg>
+        <div id="modal" class="hidden absolute inset-0 bg-black/70 flex items-center justify-center z-50">
+          <div class="bg-gray-800 p-8 rounded-xl shadow-2xl max-w-lg text-center border-2 border-purple-500">
+            <h2 id="modal-title" class="text-2xl font-bold mb-4"></h2>
+            <p id="modal-body" class="mb-6"></p>
+            <button id="modal-close" class="px-6 py-2 bg-purple-600 hover:bg-purple-700 rounded-lg">继续</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- 完整 JS 实现 -->
+  <script type="module">
+  // =====================================================================
+  // M0: Utils — deepClone, stableHash
+  // =====================================================================
+  const UNCOLORED = null;
+  function deepClone(obj) {
+    if (obj === null || typeof obj !== 'object') return obj;
+    if (obj instanceof Map) {
+      const m = new Map();
+      for (const [k,v] of obj.entries()) m.set(k, deepClone(v));
+      return m;
     }
-  },
-  initialColoring: {},
-  rules: {
-    availableOperators: ['Op_assign'],
-    winCheck: 'fullProperColoring' // symbolic; mapped to function
-  }
-};
-
-// =====================================================================================
-// SECTION 1: TYPE GUARDS & VALIDATION
-// =====================================================================================
-function validateEmbedding(graph){
-  const emb = graph.embedding;
-  for(const [cid, neighbors] of emb.entries()){
-    for(const n of neighbors){
-      const r = emb.get(n);
-      console.assert(r && r.includes(cid), `Embedding asymmetry: ${cid} -> ${n} missing reverse.`);
+    if (obj instanceof Set) {
+      const s = new Set();
+      for (const v of obj.values()) s.add(deepClone(v));
+      return s;
     }
+    if (Array.isArray(obj)) return obj.map(deepClone);
+    if (obj instanceof Date) return new Date(obj.getTime());
+    const out = {};
+    for (const [k,v] of Object.entries(obj)) out[k] = deepClone(v);
+    return out;
   }
-  if(DEV_MODE) console.log('[VALIDATE] Embedding symmetry OK.');
-}
-
-// =====================================================================================
-// SECTION 2: STATE CREATION & IMMUTABILITY HELPERS
-// =====================================================================================
-function computeCountryBoundingBoxes(verticesMap, countriesMap){
-  const boxes = new Map();
-  for(const [cid, poly] of countriesMap.entries()){
-    let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
-    for(const vid of poly){
-      const p = verticesMap.get(vid).position;
-      if(p.x<minX)minX=p.x; if(p.y<minY)minY=p.y; if(p.x>maxX)maxX=p.x; if(p.y>maxY)maxY=p.y;
-    }
-    boxes.set(cid,{minX,minY,maxX,maxY});
-  }
-  return boxes;
-}
-
-function deriveEdges(countriesMap){
-  // Edge 集仅用于边界可视化 (顶点层), 格式: "u-v" with u < v
-  const edgeSet = new Set();
-  for(const poly of countriesMap.values()){
-    for(let i=0;i<poly.length;i++){
-      const a = poly[i], b = poly[(i+1)%poly.length];
-      const u = Math.min(a,b), v = Math.max(a,b);
-      edgeSet.add(`${u}-${v}`);
-    }
-  }
-  return edgeSet;
-}
-
-function createInitialState(levelData){
-  const vertices = new Map(levelData.graph.vertices.map(v=>[v.id,v]));
-  const countries = new Map(Object.entries(levelData.graph.countries).map(([k,v])=>[Number(k),v]));
-  const embedding = new Map(Object.entries(levelData.graph.embedding).map(([k,v])=>[Number(k),v]));
-  const edges = deriveEdges(countries);
-  const countryBoundingBoxes = computeCountryBoundingBoxes(vertices,countries);
-  const graph = { vertices, countries, embedding, edges, countryBoundingBoxes };
-  validateEmbedding(graph);
-  const init = {
-    version:1,
-    currentLevelId:levelData.id,
-    graph,
-    coloring:new Map(Object.entries(levelData.initialColoring).map(([k,v])=>[Number(k),v])),
-    ui:{
-      mode:'PLAY',
-      selectedColorId:COLOR_IDS[0],
-      selectedOperator:'Op_assign',
-      message:'欢迎: 请选择一个国家并应用颜色。',
-      error:false,
-      isTransitioning:false
-    },
-    operators:{
-      enabled:new Set(levelData.rules.availableOperators)
-    },
-    history:[], // stack of snapshots
-    metrics:{ steps:0, illegalMoves:0, startTime:performance.now() },
-    levelData
-  };
-  return init;
-}
-
-function cloneColoring(col){
-  return new Map(col); // shallow is enough (values are primitives)
-}
-
-function snapshotState(state){
-  // Only persist the diff-relevant parts (graph is assumed static in current level)
-  return {
-    coloring: cloneColoring(state.coloring),
-    ui:{...state.ui},
-    metrics:{...state.metrics}
-  };
-}
-
-// =====================================================================================
-// SECTION 3: GEOMETRY & PICKING
-// =====================================================================================
-function pointInBoxNorm(point, box){
-  return point.x>=box.minX && point.x<=box.maxX && point.y>=box.minY && point.y<=box.maxY;
-}
-function pointInPolygonNorm(point, polygonPoints){
-  let inside=false; const n=polygonPoints.length;
-  for(let i=0,j=n-1;i<n;j=i++){
-    const {x:xi,y:yi}=polygonPoints[i];
-    const {x:xj,y:yj}=polygonPoints[j];
-    const intersect=((yi>point.y)!==(yj>point.y)) && (point.x < (xj - xi)*(point.y - yi)/(yj - yi + 1e-12) + xi);
-    if(intersect) inside=!inside;
-  }
-  return inside;
-}
-function pickCountry(normalizedPoint,state){
-  // BVH 尚未实现; 线性扫描 + bbox filter
-  for(const [cid, box] of state.graph.countryBoundingBoxes.entries()){
-    if(!pointInBoxNorm(normalizedPoint, box)) continue;
-    const poly = state.graph.countries.get(cid).map(vid=>state.graph.vertices.get(vid).position);
-    if(pointInPolygonNorm(normalizedPoint, poly)) return cid;
-  }
-  return null;
-}
-
-// =====================================================================================
-// SECTION 4: LEGALITY & WIN CONDITIONS
-// =====================================================================================
-function isLocalLegal(state, countryId, colorId){
-  const neighbors = state.graph.embedding.get(countryId) || [];
-  for(const n of neighbors){
-    if(state.coloring.get(n) === colorId) return false;
-  }
-  return true;
-}
-const WinCheckRegistry = {
-  fullProperColoring(state){
-    // All countries colored & each local legal
-    if(state.coloring.size !== state.graph.countries.size) return false;
-    for(const cid of state.graph.countries.keys()){
-      const c = state.coloring.get(cid);
-      if(!c) return false;
-      if(!isLocalLegal(state,cid,c)) return false;
-    }
-    return true;
-  }
-};
-function evaluateWin(state){
-  const key = state.levelData.rules.winCheck;
-  const fn = WinCheckRegistry[key];
-  return fn? fn(state): false;
-}
-
-// =====================================================================================
-// SECTION 5: OPERATORS (Pure Functions)
-// =====================================================================================
-function op_assign(state, countryId, colorId){
-  if(!state.operators.enabled.has('Op_assign')) return state;
-  if(!isLocalLegal(state,countryId,colorId)){
-    return {
-      ...state,
-      metrics:{...state.metrics, illegalMoves: state.metrics.illegalMoves+1},
-      ui:{...state.ui, message:`非法: 邻接冲突 (国家 ${countryId}).`, error:true}
-    };
-  }
-  const newColoring = cloneColoring(state.coloring); newColoring.set(countryId,colorId);
-  const newHistory = [...state.history, snapshotState(state)];
-  let newState = {
-    ...state,
-    coloring:newColoring,
-    history:newHistory,
-    metrics:{...state.metrics, steps: state.metrics.steps+1},
-    ui:{...state.ui, message:`国家 ${countryId} ← ${COLORS[colorId].name}`, error:false}
-  };
-  if(evaluateWin(newState)){
-    newState = {
-      ...newState,
-      ui:{...newState.ui, mode:'WIN', message:`完成! ${state.levelData.name} 已合法染色。`, error:false}
-    };
-  }
-  return newState;
-}
-
-// Placeholder for future operators (Kempe inversion, cut/return) – stubs retain purity & invariants.
-function op_invKempe(state, payload){
-  // payload: { startCountry, colorA, colorB }
-  if(!state.operators.enabled.has('Op_inv')) return state;
-  // TODO: BFS chain extraction + color swap + dependency registration
-  return state; // currently inert
-}
-function op_cut(state, payload){
-  if(!state.operators.enabled.has('Op_cut')) return state; return state; }
-function op_return(state, payload){
-  if(!state.operators.enabled.has('Op_return')) return state; return state; }
-
-function op_undo(state){
-  if(state.history.length===0){
-    return { ...state, ui:{...state.ui, message:'无可撤销步骤。', error:false} };
-  }
-  const last = state.history[state.history.length-1];
-  const restored = {
-    ...state,
-    coloring: cloneColoring(last.coloring),
-    ui:{...last.ui, message:'已撤销。', error:false, mode: state.ui.mode==='WIN'?'PLAY':last.ui.mode},
-    metrics:{...last.metrics},
-    history: state.history.slice(0,-1)
-  };
-  return restored;
-}
-
-// Operator dispatch map
-const OperatorImpl = {
-  Op_assign: op_assign,
-  Op_inv: op_invKempe,
-  Op_cut: op_cut,
-  Op_return: op_return
-};
-
-// =====================================================================================
-// SECTION 6: RENDERING (Canvas Immediate Mode)
-// =====================================================================================
-const renderer = {
-  init(canvas, state){
-    this.canvas = canvas; this.ctx = canvas.getContext('2d');
-    this.devicePixelRatio = window.devicePixelRatio || 1;
-    this.logicalSize = 820; // max square
-    this.patternCache = {}; // procedural patterns
-    this._resize();
-    this._createPatterns();
-  },
-  _resize(){
-    const container = this.canvas.parentElement;
-    const side = Math.min(container.clientWidth, container.clientHeight, this.logicalSize);
-    // reset transform to avoid cumulative scale
-    this.ctx.setTransform(1,0,0,1,0,0);
-    this.canvas.style.width = side+'px';
-    this.canvas.style.height = side+'px';
-    this.canvas.width = side * this.devicePixelRatio;
-    this.canvas.height= side * this.devicePixelRatio;
-    this.ctx.scale(this.devicePixelRatio, this.devicePixelRatio);
-    this.currentPixelSide = side; // used for coordinate mapping
-  },
-  _createPatterns(){
-    for(const color of Object.values(COLORS)){
-      const c = document.createElement('canvas');
-      const size = 12; c.width=size; c.height=size; const g=c.getContext('2d');
-      g.fillStyle = color.hex; g.fillRect(0,0,size,size); g.globalAlpha=.55; g.strokeStyle='#FFFFFF'; g.lineWidth=1;
-      if(color.id==='C1'){ g.beginPath(); g.moveTo(0,size); g.lineTo(size,0); g.stroke(); }
-      else if(color.id==='C2'){ g.fillStyle='#FFFFFF'; g.beginPath(); g.arc(size/2,size/2,2.2,0,Math.PI*2); g.fill(); }
-      else if(color.id==='C3'){ g.beginPath(); g.moveTo(0,0); g.lineTo(size,size); g.moveTo(size*.3,0); g.lineTo(0,size*.3); g.stroke(); }
-      else if(color.id==='C4'){ g.beginPath(); g.moveTo(0,size/2); g.lineTo(size,size/2); g.stroke(); }
-      this.patternCache[color.id] = this.ctx.createPattern(c,'repeat');
-    }
-  },
-  render(state){
-    const ctx=this.ctx; const side=this.currentPixelSide; ctx.clearRect(0,0,side,side);
-    // Countries fill
-    for(const [cid, poly] of state.graph.countries.entries()){
-      const pts = poly.map(vid=>{ const p=state.graph.vertices.get(vid).position; return {x:p.x*side,y:p.y*side}; });
-      ctx.beginPath(); ctx.moveTo(pts[0].x,pts[0].y); for(let i=1;i<pts.length;i++) ctx.lineTo(pts[i].x,pts[i].y); ctx.closePath();
-      const cId = state.coloring.get(cid);
-      if(cId){ ctx.fillStyle = this.patternCache[cId] || COLORS[cId].hex; }
-      else { ctx.fillStyle = 'rgba(74,85,104,0.75)'; }
-      ctx.fill();
-    }
-    // Edges (vertex-level)
-    ctx.lineJoin='round'; ctx.lineCap='round'; ctx.lineWidth=1.5; ctx.strokeStyle='#E5E7EB';
-    for(const edge of state.graph.edges){
-      const [u,v]=edge.split('-').map(Number);
-      const pu=state.graph.vertices.get(u).position; const pv=state.graph.vertices.get(v).position;
-      ctx.beginPath(); ctx.moveTo(pu.x*side,pu.y*side); ctx.lineTo(pv.x*side,pv.y*side); ctx.stroke();
-    }
-  },
-  renderUI(state){
-    document.getElementById('level-name').textContent = state.levelData.name;
-    const msgBar = document.getElementById('message-bar');
-    const msgText = document.getElementById('message-text');
-    msgText.textContent = state.ui.message;
-    msgBar.classList.toggle('error', !!state.ui.error);
-    msgBar.classList.toggle('success', state.ui.mode==='WIN');
-    // Palette update
-    document.querySelectorAll('#color-palette button').forEach(btn=>{
-      const sel = btn.dataset.colorId===state.ui.selectedColorId;
-      btn.classList.toggle('selected', sel); btn.setAttribute('aria-checked', sel);
-      btn.disabled = state.ui.mode==='WIN';
-    });
-    // Operator panel toggle
-    document.querySelectorAll('#operator-panel button').forEach(btn=>{
-      const op=btn.dataset.op; const active = (op===state.ui.selectedOperator);
-      btn.classList.toggle('active', active); btn.disabled = !state.operators.enabled.has(op) || state.ui.mode==='WIN';
-    });
-    // History
-    const historyPanel = document.getElementById('history-panel');
-    historyPanel.innerHTML='';
-    state.history.slice(-40).forEach((snap,idx)=>{
-      const div=document.createElement('div'); div.className='log-entry';
-      div.textContent = `${state.history.length-40+idx+1}. coloringSize=${snap.coloring.size}`;
-      historyPanel.appendChild(div);
-    });
-    // Metrics
-    const ap = document.getElementById('analytics-panel');
-    const elapsed = ((performance.now()-state.metrics.startTime)/1000).toFixed(1);
-    ap.innerHTML = `<div>Steps</div><div>${state.metrics.steps}</div><div>Illegal</div><div>${state.metrics.illegalMoves}</div><div>Elapsed(s)</div><div>${elapsed}</div>`;
-    document.getElementById('game-container').classList.toggle('frozen', state.ui.mode==='WIN');
-  }
-};
-
-// =====================================================================================
-// SECTION 7: CONTROLLER & DISPATCH
-// =====================================================================================
-const controller = {
-  dispatch(state, action){
-    if(state.ui.isTransitioning) return state;
-    if(state.ui.mode==='WIN' && !['RESET_LEVEL'].includes(action.type)) return state;
-    switch(action.type){
-      case 'ASSIGN_COLOR': return OperatorImpl[state.ui.selectedOperator](state, action.payload.countryId, state.ui.selectedColorId);
-      case 'SELECT_COLOR': return { ...state, ui:{...state.ui, selectedColorId: action.payload.colorId} };
-      case 'SELECT_OPERATOR': return { ...state, ui:{...state.ui, selectedOperator: action.payload.operator} };
-      case 'UNDO': return op_undo(state);
-      case 'RESET_LEVEL': return createInitialState(state.levelData);
-      default: return state;
-    }
-  },
-  setupEventListeners(canvas, getState, update){
-    // Canvas click -> pick
-    canvas.addEventListener('click', e=>{
-      const rect = canvas.getBoundingClientRect();
-      const norm = { x:(e.clientX-rect.left)/rect.width, y:(e.clientY-rect.top)/rect.height };
-      const state = getState(); if(state.ui.mode==='WIN') return;
-      const cid = pickCountry(norm,state); if(cid!==null){ update({type:'ASSIGN_COLOR', payload:{countryId:cid}}); }
-    });
-    // Keyboard shortcuts
-    canvas.addEventListener('keydown', e=>{
-      const state = getState(); if(state.ui.mode==='WIN') return;
-      if(e.key>='1' && e.key<='4'){ const idx=Number(e.key)-1; update({type:'SELECT_COLOR', payload:{colorId:COLOR_IDS[idx]}}); }
-      if(e.key==='z' && (e.metaKey||e.ctrlKey)){ update({type:'UNDO'}); }
-    });
-    // Palette
-    document.getElementById('color-palette').addEventListener('click',e=>{
-      if(e.target.tagName==='BUTTON'){
-        const c=e.target.dataset.colorId; if(c) update({type:'SELECT_COLOR', payload:{colorId:c}});
+  function stableHash(obj) {
+    const str = JSON.stringify(obj, (k,v) => {
+      if (v instanceof Map) {
+        return {
+          __type:'Map',
+          value:Array.from(v.entries()).sort((a,b)=>{
+            const ka=String(a[0]), kb=String(b[0]);
+            return ka<kb?-1:ka>kb?1:0;
+          })
+        };
       }
-    });
-    // Operator panel
-    document.getElementById('operator-panel').addEventListener('click',e=>{
-      if(e.target.tagName==='BUTTON'){
-        const op=e.target.dataset.op; update({type:'SELECT_OPERATOR', payload:{operator:op}});
+      if (v instanceof Set) {
+        return { __type:'Set', value:Array.from(v).sort() };
       }
+      return v;
     });
-    // Undo
-    document.addEventListener('keydown',e=>{ if(e.key==='Escape') update({type:'UNDO'}); });
-    document.getElementById('history-panel').addEventListener('dblclick',()=> update({type:'UNDO'}));
-    window.addEventListener('resize',()=>{ renderer._resize(); renderer.render(getState()); });
+    let h=0;
+    for(let i=0;i<str.length;i++){
+      h=((h<<5)-h)+str.charCodeAt(i);
+      h|=0;
+    }
+    return (h>>>0).toString(16).padStart(8,'0');
   }
-};
 
-// =====================================================================================
-// SECTION 8: UI INITIALIZATION HELPERS
-// =====================================================================================
-function buildPalette(){
-  const root=document.getElementById('color-palette'); root.innerHTML='';
-  for(const c of Object.values(COLORS)){
-    const btn=document.createElement('button');
-    btn.style.backgroundColor=c.hex; btn.dataset.colorId=c.id; btn.setAttribute('role','radio'); btn.setAttribute('aria-checked','false'); btn.title=c.name; root.appendChild(btn);
+  // =====================================================================
+  // M1: Graph — V,E,rotation positions, no self-loop/multiedge, clone, planarity
+  // =====================================================================
+  class Graph {
+    constructor() {
+      this.V = new Set();
+      this.E = new Set();        // edges as "min-max"
+      this.adj = new Map();      // Map<v,Set<v>>
+      this.rotation = new Map(); // Map<v, Array<v>> in CW order
+      this.positions = new Map();// Map<v,{x,y}>
+    }
+    addVertex(v, rotList=[], pos={x:0,y:0}) {
+      if (this.V.has(v)) throw new Error(`Vertex ${v} exists`);
+      this.V.add(v);
+      this.adj.set(v, new Set());
+      this.rotation.set(v, Array.from(rotList));
+      this.positions.set(v, { x: pos.x, y: pos.y });
+    }
+    addEdge(u,v) {
+      if (u===v) throw new Error(`Self-loop at ${u}`);
+      if (!this.V.has(u)||!this.V.has(v)) throw new Error(`Missing endpoint ${u},${v}`);
+      const [a,b] = u<v?[u,v]:[v,u];
+      const key = `${a}-${b}`;
+      if (this.E.has(key)) throw new Error(`Parallel edge ${key}`);
+      this.E.add(key);
+      this.adj.get(u).add(v);
+      this.adj.get(v).add(u);
+      this.rotation.get(u).push(v);
+      this.rotation.get(v).push(u);
+    }
+    removeVertex(v) {
+      if (!this.V.has(v)) throw new Error(`No vertex ${v}`);
+      const neighbors = Array.from(this.adj.get(v));
+      const rot = Array.from(this.rotation.get(v));
+      const pos = {...this.positions.get(v)};
+      for(const u of neighbors){
+        this.adj.get(u).delete(v);
+        const [a,b]=u<v?[u,v]:[v,u];
+        this.E.delete(`${a}-${b}`);
+        this.rotation.set(u, this.rotation.get(u).filter(x=>x!==v));
+      }
+      this.V.delete(v);
+      this.adj.delete(v);
+      this.rotation.delete(v);
+      this.positions.delete(v);
+      return { v, neighbors, rot, pos };
+    }
+    neighbors(v) {
+      if (!this.V.has(v)) throw new Error(`No vertex ${v}`);
+      return Array.from(this.adj.get(v));
+    }
+    degree(v) {
+      if (!this.V.has(v)) throw new Error(`No vertex ${v}`);
+      return this.adj.get(v).size;
+    }
+    clone() {
+      const g2 = new Graph();
+      for(const v of this.V){
+        g2.V.add(v);
+        g2.adj.set(v, new Set(this.adj.get(v)));
+        g2.rotation.set(v, Array.from(this.rotation.get(v)));
+        g2.positions.set(v, {...this.positions.get(v)});
+      }
+      for(const e of this.E) g2.E.add(e);
+      return g2;
+    }
+    isPlanar() {
+      // TODO: integrate Boyer–Myrvold; currently assume valid
+      return true;
+    }
+    static fromData(data) {
+      const g = new Graph();
+      for(const vObj of data.vertices){
+        g.addVertex(vObj.id, vObj.rot||[], vObj.pos);
+      }
+      for(const [u,v] of data.edges) g.addEdge(u,v);
+      if(!g.isPlanar()) throw new Error("Graph not planar");
+      return g;
+    }
   }
-}
-function buildOperatorPanel(state){
-  const ops=['Op_assign','Op_inv','Op_cut','Op_return'];
-  const panel=document.getElementById('operator-panel'); panel.innerHTML='';
-  for(const op of ops){
-    const b=document.createElement('button'); b.textContent=op.replace('Op_',''); b.dataset.op=op; if(!state.operators.enabled.has(op)) b.disabled=true; panel.appendChild(b);
+
+  // =====================================================================
+  // M2: GameState, Predicates, Kempe chain & dependency
+  // =====================================================================
+  class GameState {
+    constructor(graph, phi) {
+      this.graph = graph;
+      this.phi = phi; // Map<v,color|null>
+      this.hash = stableHash({ adj: graph.adj, phi });
+    }
+    clone() {
+      const g2 = this.graph.clone();
+      const phi2 = deepClone(this.phi);
+      return new GameState(g2, phi2);
+    }
   }
-}
+  const Predicates = {
+    isProper(state) {
+      for(const key of state.graph.E){
+        const [u,v] = key.split('-');
+        const cu = state.phi.get(u), cv = state.phi.get(v);
+        if(cu!==UNCOLORED && cu===cv) return false;
+      }
+      return true;
+    },
+    isFullyColored(state) {
+      for(const v of state.graph.V){
+        if(state.phi.get(v)===UNCOLORED) return false;
+      }
+      return true;
+    },
+    isWinning(state) {
+      return this.isProper(state) && this.isFullyColored(state);
+    }
+  };
+  const Kempe = {
+    computeChain(state, root, a, b) {
+      if(!state.graph.V.has(root)) return [];
+      const queue=[root], vis=new Set([root]), chain=[];
+      const sel=new Set([a,b]);
+      while(queue.length){
+        const u=queue.shift(); chain.push(u);
+        for(const w of state.graph.neighbors(u)){
+          if(!vis.has(w) && sel.has(state.phi.get(w))){
+            vis.add(w); queue.push(w);
+          }
+        }
+      }
+      return chain.sort((x,y)=>String(x).localeCompare(y));
+    },
+    checkDependency(state, op1, op2) {
+      const before = this.computeChain(state, op2.args.root, op2.args.a, op2.args.b);
+      const after = this.computeChain(op1.execute(state.clone()), op2.args.root, op2.args.a, op2.args.b);
+      return stableHash(before)!==stableHash(after);
+    }
+  };
 
-// =====================================================================================
-// SECTION 9: MAIN ENTRY
-// =====================================================================================
-(function main(){
-  const canvas=document.getElementById('game-canvas');
-  let state=createInitialState(level1Data);
-  renderer.init(canvas,state);
-  buildPalette(); buildOperatorPanel(state);
+  // =====================================================================
+  // M3: Operators — Assign, Cut, Return, Invert
+  // =====================================================================
+  class Operator { constructor(name,args){ this.op=name; this.args=args; } }
+  class AssignOp extends Operator {
+    constructor(v,c){ super('Assign',{v,c}); }
+    execute(state) {
+      const s=state.clone();
+      s.phi.set(this.args.v,this.args.c);
+      return s;
+    }
+    domain() { return new Set([this.args.v]); }
+  }
+  class CutOp extends Operator {
+    constructor(v){ super('Cut',{v}); }
+    execute(state) {
+      const s=state.clone();
+      const mem=s.graph.removeVertex(this.args.v);
+      mem.phi_v=s.phi.get(this.args.v);
+      s.phi.delete(this.args.v);
+      Game.inductionStack.push(mem);
+      return s;
+    }
+    domain() { return new Set([this.args.v]); }
+  }
+  class ReturnOp extends Operator {
+    constructor(){ super('Return',{}); }
+    execute(state) {
+      if(Game.inductionStack.length===0) return state;
+      const s=state.clone();
+      const mem=Game.inductionStack.pop();
+      s.graph.addVertex(mem.v, mem.rot, mem.pos);
+      for(const u of mem.neighbors) s.graph.addEdge(mem.v,u);
+      s.phi.set(mem.v,UNCOLORED);
+      return s;
+    }
+    domain() {
+      const top=Game.inductionStack[Game.inductionStack.length-1];
+      return top?new Set([top.v]):new Set();
+    }
+  }
+  class InvertOp extends Operator {
+    constructor(root,a,b){ super('Invert',{root,a,b}); }
+    computeDomain(state) {
+      return new Set(Kempe.computeChain(state,this.args.root,this.args.a,this.args.b));
+    }
+    execute(state) {
+      const s=state.clone();
+      const chain=Kempe.computeChain(s,this.args.root,this.args.a,this.args.b);
+      for(const v of chain){
+        if(s.phi.get(v)===this.args.a) s.phi.set(v,this.args.b);
+        else if(s.phi.get(v)===this.args.b) s.phi.set(v,this.args.a);
+      }
+      return s;
+    }
+  }
 
-  const update = (action)=>{
-    const newState = controller.dispatch(state, action);
-    if(newState!==state){ state=newState; renderer.render(state); renderer.renderUI(state);} };
+  // =====================================================================
+  // M4: TraceManager — record steps, attempts, undo
+  // =====================================================================
+  class TraceManager {
+    constructor(){ this.trace=[]; }
+    addStep(op,oldState,newState,extra={}) {
+      const domain = op.domain
+        ? (typeof op.domain==='function' ? op.domain(oldState) : op.domain)
+        : (op.computeDomain? op.computeDomain(oldState) : new Set());
+      this.trace.push({
+        idx:this.trace.length,
+        op:op.op,
+        args: deepClone(op.args),
+        pre_hash:oldState.hash,
+        post_hash:newState.hash,
+        domain,
+        legal:true,
+        ...extra
+      });
+    }
+    addAttempt(op,blockedBy) {
+      this.trace.push({
+        idx:this.trace.length,
+        op:`Attempt${op.op}`,
+        args:deepClone(op.args),
+        blocked_by:blockedBy,
+        state_unchanged:true,
+        legal:false,
+        domain:new Set()
+      });
+    }
+    undo() {
+      if(!this.trace.length) return null;
+      this.trace.pop();
+      Game.inductionStack=[];
+      let state=LevelManager.getInitialState(Game.currentLevelId);
+      for(const step of this.trace){
+        const Cls={Assign:AssignOp,Cut:CutOp,Return:ReturnOp,Invert:InvertOp}[step.op];
+        if(Cls && step.legal){
+          const op=new Cls(...Object.values(step.args));
+          state=op.execute(state);
+        }
+      }
+      return state;
+    }
+    getCanonicalTrace(){ return this.trace; }
+  }
 
-  controller.setupEventListeners(canvas, ()=>state, update);
-  renderer.render(state); renderer.renderUI(state);
-  console.log('[INIT] Boundary of Logic prototype started.');
-  window.__GAME_STATE__=()=>state;
-})();
-</script>
+  // =====================================================================
+  // M5: GoalChecker
+  // =====================================================================
+  const GoalChecker = {
+    predicates:{
+      win_by_coloring:(S,T)=>Predicates.isWinning(S),
+      win_by_induction:(S,T)=>Predicates.isWinning(S)&&T.some(t=>t.op==='Cut')&&T.some(t=>t.op==='Return'),
+      win_by_kempe:(S,T)=>Predicates.isWinning(S)&&T.some(t=>t.op==='Invert'),
+      win_by_dependency:(S,T)=>T.some(t=>t.op==='SubmitReport')
+    },
+    check(levelId,state,trace) {
+      const goal=LevelManager.levels[levelId].goal;
+      if(this.predicates[goal]?.(state,trace)){
+        UIManagerInstance.showModal(
+          `关卡 ${levelId} 完成!`,
+          LevelManager.levels[levelId].winMessage
+        );
+      }
+    }
+  };
+
+  // =====================================================================
+  // M6: LevelManager
+  // =====================================================================
+  const LevelManager = {
+    levels:{
+      L0:{ name:"L0: 基础着色", goal:"win_by_coloring",
+           winMessage:"你已掌握基础的合法着色规则：相邻顶点不能同色。",
+           data:{
+             vertices:[
+               {id:0,pos:{x:20,y:50}},
+               {id:1,pos:{x:50,y:50}},
+               {id:2,pos:{x:80,y:50}}
+             ],
+             edges:[[0,1],[1,2]]
+           }
+      },
+      L1:{ name:"L1: 归纳法", goal:"win_by_induction",
+           winMessage:"漂亮！你利用了归纳法思想：移除低度数顶点来简化问题，解决子问题后再将其插回。这是证明中的关键一步。",
+           data:{
+             vertices:[
+               {id:0,pos:{x:25,y:25}},
+               {id:1,pos:{x:75,y:25}},
+               {id:2,pos:{x:75,y:75}},
+               {id:3,pos:{x:25,y:75}},
+               {id:4,pos:{x:50,y:50}}
+             ],
+             edges:[[0,1],[1,2],[2,3],[3,0],[0,4],[1,4],[2,4],[3,4]]
+           }
+      },
+      L2:{ name:"L2: Kempe 链", goal:"win_by_kempe",
+           winMessage:"精彩的交换！当一个顶点被邻居颜色完全阻塞时，你可以通过交换一条 Kempe 链中两种颜色来为它腾出空间。",
+           data:{
+             vertices:[
+               {id:0,pos:{x:50,y:10}},
+               {id:1,pos:{x:90,y:50}},
+               {id:2,pos:{x:50,y:90}},
+               {id:3,pos:{x:10,y:50}},
+               {id:4,pos:{x:50,y:50}},
+               {id:5,pos:{x:30,y:10}},
+               {id:6,pos:{x:70,y:10}}
+             ],
+             edges:[[0,4],[1,4],[2,4],[3,4],[0,5],[0,6],[5,6]]
+           }
+      },
+      L4_BOSS:{ name:"L4: 依赖性危机", goal:"win_by_dependency",
+           winMessage:"证明的本质！你发现了算子并非总是可交换的。当两条 Kempe 链交叉时，一个操作会改变另一个操作的作用域，导致逻辑依赖。理解这一点，是理解四色定理证明复杂性的关键。",
+           data:{
+             vertices:[
+               {id:0,pos:{x:50,y:5}},
+               {id:1,pos:{x:20,y:25}},
+               {id:2,pos:{x:80,y:25}},
+               {id:3,pos:{x:50,y:40}},
+               {id:4,pos:{x:20,y:65}},
+               {id:5,pos:{x:80,y:65}},
+               {id:6,pos:{x:50,y:80}},
+               {id:7,pos:{x:50,y:95}}
+             ],
+             edges:[[0,1],[0,2],[1,3],[2,3],[1,4],[3,4],[3,5],[2,5],[4,6],[5,6],[6,7]]
+           }
+      }
+    },
+    initialStates:new Map(),
+    init() {
+      for(const [id,lvl] of Object.entries(this.levels)){
+        const g=Graph.fromData(lvl.data);
+        const phi=new Map();
+        for(const v of g.V) phi.set(v,UNCOLORED);
+        if(id==='L2'){
+          phi.set(0,'c1');phi.set(1,'c2');phi.set(2,'c3');phi.set(3,'c4');
+          phi.set(5,'c2');phi.set(6,'c3');
+        }
+        if(id==='L4_BOSS'){
+          phi.set(0,'c1');phi.set(7,'c1');
+          phi.set(1,'c2');phi.set(2,'c3');
+          phi.set(4,'c3');phi.set(5,'c2');
+          phi.set(6,'c4');
+        }
+        this.initialStates.set(id,new GameState(g,phi));
+      }
+    },
+    getInitialState(id){
+      return this.initialStates.get(id).clone();
+    }
+  };
+
+  // =====================================================================
+  // M7: UIManager
+  // =====================================================================
+  let UIManagerInstance;
+  class UIManager {
+    constructor(){
+      this.svg=document.getElementById('graph-canvas');
+      this.infoText=document.getElementById('info-text');
+      this.opPanel=document.getElementById('operator-panel');
+      this.tracePanel=document.getElementById('proof-trace');
+      this.stackPanel=document.getElementById('induction-stack');
+      this.invertPanel=document.getElementById('invert-panel');
+      this.reportPanel=document.getElementById('report-panel');
+      this.modal=document.getElementById('modal');
+      this.modalTitle=document.getElementById('modal-title');
+      this.modalBody=document.getElementById('modal-body');
+      this.vb={ x:0,y:0,w:100,h:100 };
+      this.isPanning=false;
+      this.startPt={x:0,y:0};
+    }
+    init(){
+      UIManagerInstance=this;
+      // Level selector
+      const sel=document.getElementById('level-selector');
+      for(const id of Object.keys(LevelManager.levels)){
+        const btn=document.createElement('button');
+        btn.textContent=id;
+        btn.className='px-3 py-1 rounded-md bg-gray-700 hover:bg-purple-600 transition';
+        btn.onclick=()=>Game.loadLevel(id);
+        sel.appendChild(btn);
+      }
+      // Canvas interactions
+      this.svg.addEventListener('wheel',this.onZoom.bind(this),{passive:false});
+      this.svg.addEventListener('pointerdown',this.onPointerDown.bind(this));
+      this.svg.addEventListener('pointerup',this.onPointerUp.bind(this));
+      this.svg.addEventListener('pointerleave',this.onPointerUp.bind(this));
+      this.svg.addEventListener('pointermove',this.onPointerMove.bind(this));
+      // Operator buttons
+      document.getElementById('op-cut').onclick=()=>Game.handleOperator('Cut');
+      document.getElementById('op-return').onclick=()=>Game.handleOperator('Return');
+      document.getElementById('op-invert').onclick=()=>this.showInvertPanel();
+      document.getElementById('op-undo').onclick=()=>Game.handleOperator('Undo');
+      document.getElementById('invert-cancel').onclick=()=>this.hideInvertPanel();
+      document.getElementById('invert-confirm').onclick=()=>{
+        const sel=this.invertPanel.querySelector('input[name="color-pair"]:checked');
+        if(sel){
+          const [a,b]=sel.value.split(',');
+          Game.handleOperator('Invert',{a,b});
+          this.hideInvertPanel();
+        }
+      };
+      document.getElementById('report-submit').onclick=()=>{
+        Game.handleOperator('SubmitReport');
+        this.hideReportPanel();
+      };
+      document.getElementById('modal-close').onclick=()=>this.hideModal();
+      // Color palette
+      document.querySelectorAll('#color-palette button').forEach(btn=>{
+        btn.onclick=()=>Game.handleOperator('Assign',{color:btn.dataset.color});
+      });
+    }
+    render(state){
+      this.renderGraph(state);
+      this.renderTrace(Game.traceManager.trace);
+      this.renderStack(Game.inductionStack);
+      this.updateOperatorPanel(state);
+    }
+    renderGraph(state){
+      this.svg.innerHTML='';
+      const g=state.graph;
+      // Compute viewBox
+      const xs=Array.from(g.V).map(v=>g.positions.get(v).x);
+      const ys=Array.from(g.V).map(v=>g.positions.get(v).y);
+      const minX=Math.min(...xs), maxX=Math.max(...xs);
+      const minY=Math.min(...ys), maxY=Math.max(...ys);
+      const pad=20;
+      this.vb.x=minX-pad; this.vb.y=minY-pad;
+      this.vb.w=(maxX-minX)+2*pad; this.vb.h=(maxY-minY)+2*pad;
+      this.svg.setAttribute('viewBox',`${this.vb.x} ${this.vb.y} ${this.vb.w} ${this.vb.h}`);
+      // Draw edges
+      const edgeG=document.createElementNS('http://www.w3.org/2000/svg','g');
+      for(const key of g.E){
+        const [u,v]=key.split('-').map(Number);
+        const pu=g.positions.get(u), pv=g.positions.get(v);
+        const line=document.createElementNS('http://www.w3.org/2000/svg','line');
+        line.setAttribute('x1',pu.x); line.setAttribute('y1',pu.y);
+        line.setAttribute('x2',pv.x); line.setAttribute('y2',pv.y);
+        line.classList.add('edge');
+        if(state.phi.get(u)!==UNCOLORED && state.phi.get(u)===state.phi.get(v)){
+          line.classList.add('conflict');
+        }
+        edgeG.appendChild(line);
+      }
+      this.svg.appendChild(edgeG);
+      // Draw vertices
+      const vertG=document.createElementNS('http://www.w3.org/2000/svg','g');
+      for(const v of g.V){
+        const pos=g.positions.get(v);
+        const color=state.phi.get(v);
+        const circ=document.createElementNS('http://www.w3.org/2000/svg','circle');
+        circ.setAttribute('cx',pos.x); circ.setAttribute('cy',pos.y); circ.setAttribute('r',5);
+        circ.style.fill = color?`var(--${color})`:`var(--c-uncolored-bg)`;
+        if(!color) circ.style.stroke = `var(--c-uncolored)`;
+        circ.style.strokeWidth='1.5';
+        circ.dataset.id=v;
+        circ.classList.add('vertex');
+        if(v===Game.selectedVertex) circ.classList.add('selected');
+        circ.onclick=()=>Game.selectVertex(v);
+        vertG.appendChild(circ);
+        const txt=document.createElementNS('http://www.w3.org/2000/svg','text');
+        txt.setAttribute('x',pos.x); txt.setAttribute('y',pos.y+1.5);
+        txt.setAttribute('text-anchor','middle'); txt.setAttribute('font-size','4');
+        txt.textContent=v;
+        txt.style.fill=color?'white':'black';
+        txt.style.pointerEvents='none';
+        vertG.appendChild(txt);
+      }
+      this.svg.appendChild(vertG);
+    }
+    renderTrace(trace){
+      this.tracePanel.innerHTML='';
+      if(!trace.length){
+        this.tracePanel.innerHTML='<p class="text-gray-500 text-center">轨迹为空</p>';
+        return;
+      }
+      trace.forEach(step=>{
+        const div=document.createElement('div');
+        div.className='trace-step p-2 rounded-md bg-gray-800 text-sm';
+        let content=`<b>${step.idx}:</b> ${step.op}(${JSON.stringify(step.args)})`;
+        if(step.dep_flag){
+          div.classList.add('bg-rose-800/50','dep-blocked');
+          content+=` <span class="font-bold text-rose-400">[依赖于 #${step.blocked_by}]</span>`;
+          const src=this.tracePanel.querySelector(`[data-idx='${step.blocked_by}']`);
+          if(src) src.classList.add('dep-source');
+        }
+        div.innerHTML=content;
+        div.dataset.idx=step.idx;
+        this.tracePanel.appendChild(div);
+      });
+      this.tracePanel.scrollTop=this.tracePanel.scrollHeight;
+    }
+    renderStack(stack){
+      this.stackPanel.innerHTML='';
+      if(!stack.length){
+        this.stackPanel.innerHTML='<p class="text-gray-500">空</p>'; return;
+      }
+      stack.forEach(mem=>{
+        const div=document.createElement('div');
+        div.className='p-1 bg-purple-900/50 rounded text-center';
+        div.textContent=`M(${mem.v})`;
+        this.stackPanel.prepend(div);
+      });
+    }
+    updateOperatorPanel(state){
+      const v=Game.selectedVertex;
+      const hasSel=v!==null;
+      const col=hasSel?state.phi.get(v):UNCOLORED;
+      document.querySelectorAll('#color-palette button').forEach(btn=>{
+        btn.disabled=!hasSel||col!==UNCOLORED;
+      });
+      document.getElementById('op-cut').disabled=!hasSel;
+      document.getElementById('op-return').disabled=Game.inductionStack.length===0;
+      document.getElementById('op-invert').disabled=!hasSel||col===UNCOLORED;
+      document.getElementById('op-undo').disabled=Game.traceManager.trace.length===0;
+    }
+    showInvertPanel(){
+      if(Game.selectedVertex===null) return;
+      const v=Game.selectedVertex;
+      const neigh=Game.state.graph.neighbors(v);
+      const neighborColors=new Set(neigh.map(u=>Game.state.phi.get(u)).filter(c=>c!==UNCOLORED));
+      const pairs=[];
+      const arr=Array.from(neighborColors);
+      for(let i=0;i<arr.length;i++){
+        for(let j=i+1;j<arr.length;j++) pairs.push([arr[i],arr[j]]);
+      }
+      const selDiv=document.getElementById('invert-color-selector');
+      selDiv.innerHTML='';
+      document.getElementById('invert-confirm').disabled = pairs.length===0;
+      if(!pairs.length){
+        selDiv.innerHTML='<p class="text-sm text-gray-400 col-span-4">没有可用的颜色对。</p>';
+      }
+      pairs.forEach(([a,b],i)=>{
+        const id=`pair-${i}`;
+        const div=document.createElement('div');
+        div.className='col-span-2 flex items-center gap-2';
+        div.innerHTML=`
+          <input type="radio" name="color-pair" value="${a},${b}" id="${id}" class="hidden peer">
+          <label for="${id}" class="w-full flex items-center justify-center gap-2 p-2 rounded-lg border-2 border-gray-600 cursor-pointer peer-checked:border-teal-500 peer-checked:bg-teal-900/50">
+            <span class="w-4 h-4 rounded-full" style="background-color:var(--${a})"></span>
+            <span class="w-4 h-4 rounded-full" style="background-color:var(--${b})"></span>
+          </label>`;
+        selDiv.appendChild(div);
+      });
+      this.invertPanel.classList.remove('hidden');
+    }
+    hideInvertPanel(){ this.invertPanel.classList.add('hidden'); }
+    showReportPanel(opIdx,args){
+      this.reportPanel.classList.remove('hidden');
+      document.getElementById('report-text').textContent=
+        `你发现 Invert(${args.root},${args.a},${args.b}) 的行为被轨迹 #${opIdx} 改变。`;
+      Game.reportContext={opIdx,args};
+    }
+    hideReportPanel(){ this.reportPanel.classList.add('hidden'); }
+    showModal(title,body){
+      this.modalTitle.textContent=title;
+      this.modalBody.textContent=body;
+      this.modal.classList.remove('hidden');
+    }
+    hideModal(){ this.modal.classList.add('hidden'); }
+    onZoom(e){
+      e.preventDefault();
+      const {clientX,clientY,deltaY}=e;
+      const scale=deltaY<0?0.9:1.1;
+      const pt=this.getSVGPoint(clientX,clientY);
+      this.vb.x=(this.vb.x-pt.x)*scale+pt.x;
+      this.vb.y=(this.vb.y-pt.y)*scale+pt.y;
+      this.vb.w*=scale; this.vb.h*=scale;
+      this.svg.setAttribute('viewBox',`${this.vb.x} ${this.vb.y} ${this.vb.w} ${this.vb.h}`);
+    }
+    onPointerDown(e){
+      if(e.target!==this.svg) return;
+      this.isPanning=true;
+      this.startPt=this.getSVGPoint(e.clientX,e.clientY);
+      this.svg.style.cursor='grabbing';
+    }
+    onPointerUp(e){
+      this.isPanning=false;
+      this.svg.style.cursor='grab';
+    }
+    onPointerMove(e){
+      if(!this.isPanning) return;
+      e.preventDefault();
+      const pt=this.getSVGPoint(e.clientX,e.clientY);
+      const dx=pt.x-this.startPt.x, dy=pt.y-this.startPt.y;
+      this.vb.x-=dx; this.vb.y-=dy;
+      this.svg.setAttribute('viewBox',`${this.vb.x} ${this.vb.y} ${this.vb.w} ${this.vb.h}`);
+    }
+    getSVGPoint(cx,cy){
+      const pt=this.svg.createSVGPoint();
+      pt.x=cx; pt.y=cy;
+      return pt.matrixTransform(this.svg.getScreenCTM().inverse());
+    }
+  }
+
+  // =====================================================================
+  // M8: Game logic
+  // =====================================================================
+  const Game = {
+    state:null,
+    traceManager:null,
+    inductionStack:[],
+    selectedVertex:null,
+    currentLevelId:null,
+    reportContext:null,
+    init(){
+      LevelManager.init();
+      this.traceManager=new TraceManager();
+      this.uiManager=new UIManager();
+      this.uiManager.init();
+      this.loadLevel('L0');
+    },
+    loadLevel(id){
+      this.currentLevelId=id;
+      this.state=LevelManager.getInitialState(id);
+      this.traceManager=new TraceManager();
+      this.inductionStack=[];
+      this.selectedVertex=null;
+      this.uiManager.hideInvertPanel();
+      this.uiManager.hideReportPanel();
+      this.uiManager.hideModal();
+      this.uiManager.render(this.state);
+      this.uiManager.infoText.textContent=LevelManager.levels[id].name;
+      document.querySelectorAll('#level-selector button').forEach(btn=>{
+        btn.classList.toggle('bg-purple-600',btn.textContent===id);
+        btn.classList.toggle('bg-gray-700',btn.textContent!==id);
+      });
+    },
+    selectVertex(v){
+      this.selectedVertex = this.selectedVertex===v?null:v;
+      this.uiManager.render(this.state);
+    },
+    handleOperator(opName,args={}) {
+      if(opName==='Undo'){
+        const prev=this.traceManager.undo();
+        if(prev){ this.state=prev; this.uiManager.render(this.state); }
+        return;
+      }
+      if(opName==='SubmitReport'){
+        const op={op:'SubmitReport',args:this.reportContext};
+        this.traceManager.addStep(op,this.state,this.state);
+        this.uiManager.render(this.state);
+        GoalChecker.check(this.currentLevelId,this.state,this.traceManager.trace);
+        return;
+      }
+      const oldState=this.state;
+      let op,newState;
+      const selV=this.selectedVertex;
+      switch(opName){
+        case 'Assign':
+          if(selV===null){ this.uiManager.infoText.textContent='错误: 需选顶点'; return; }
+          op=new AssignOp(selV,args.color);
+          newState=op.execute(oldState.clone());
+          if(!Predicates.isProper(newState)){ this.uiManager.infoText.textContent='错误: 非法着色'; return; }
+          break;
+        case 'Cut':
+          if(selV===null){ this.uiManager.infoText.textContent='错误: 需选顶点'; return; }
+          op=new CutOp(selV);
+          newState=op.execute(oldState);
+          break;
+        case 'Return':
+          if(this.inductionStack.length===0){ this.uiManager.infoText.textContent='无可返还'; return; }
+          op=new ReturnOp();
+          newState=op.execute(oldState);
+          break;
+        case 'Invert':
+          if(selV===null){ this.uiManager.infoText.textContent='错误: 需选顶点'; return; }
+          op=new InvertOp(selV,args.a,args.b);
+          for(let i=this.traceManager.trace.length-1;i>=0;i--){
+            const prev=this.traceManager.trace[i];
+            if(prev.op!=='Invert') continue;
+            const prevOp=new InvertOp(...Object.values(prev.args));
+            const preState=this.findStateByHash(prev.pre_hash);
+            if(preState && Kempe.checkDependency(preState,prevOp,op)){
+              this.traceManager.addAttempt(op,i);
+              this.uiManager.render(this.state);
+              this.uiManager.showReportPanel(i,op.args);
+              return;
+            }
+          }
+          newState=op.execute(oldState);
+          break;
+        default: return;
+      }
+      this.state=newState;
+      this.traceManager.addStep(op,oldState,this.state);
+      this.uiManager.render(this.state);
+      GoalChecker.check(this.currentLevelId,this.state,this.traceManager.trace);
+      this.selectVertex(null);
+    },
+    findStateByHash(hash){
+      let st=LevelManager.getInitialState(this.currentLevelId);
+      if(st.hash===hash) return st;
+      for(const step of this.traceManager.trace){
+        if(step.pre_hash===hash) return st.clone();
+        const Cls={Assign:AssignOp,Cut:CutOp,Return:ReturnOp,Invert:InvertOp}[step.op];
+        if(Cls && step.legal){
+          const op=new Cls(...Object.values(step.args));
+          st=op.execute(st);
+        }
+        if(st.hash===hash) return st;
+      }
+      return null;
+    }
+  };
+
+  // 启动
+  window.onload = ()=>Game.init();
+  </script>
 </body>
 </html>
