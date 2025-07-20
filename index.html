@@ -1,692 +1,501 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh-CN" class="bg-gray-100 dark:bg-gray-900 text-gray-800 dark:text-gray-200">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>四色定理：演绎迷踪 (Q.E.D. Project)</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>四色定理交互式证明</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet">
+  <script src="https://d3js.org/d3.v7.min.js"></script>
   <style>
-    :root {
-      --c1: #ef4444;
-      --c2: #3b82f6;
-      --c3: #22c55e;
-      --c4: #eab308;
-      --c-uncolored: #9ca3af;
-      --c-uncolored-bg: #f3f4f6;
-    }
-    body { font-family: 'Noto Sans SC', sans-serif; overscroll-behavior: none; }
-    .graph-canvas { touch-action: none; cursor: grab; }
-    .vertex { transition: all .3s ease; cursor: pointer; }
-    .vertex:hover { transform: scale(1.2); filter: brightness(1.1); }
-    .vertex.selected {
-      stroke: #a855f7; stroke-width: 6px;
-      filter: drop-shadow(0 0 8px #a855f7);
-    }
-    .edge { transition: all .3s ease; stroke: #4b5563; stroke-width: 3; }
-    .edge.conflict {
-      stroke: #f43f5e; stroke-width: 5px;
-      animation: pulse 1s infinite;
-    }
-    @keyframes pulse { 0%,100%{opacity:1}50%{opacity:.5} }
-    .kempe-chain { animation: kempe-flow 2s linear infinite; }
-    @keyframes kempe-flow { from{stroke-dashoffset:20}to{stroke-dashoffset:0} }
-    .trace-step { transition: background-color .3s; }
-    .trace-step.dep-source { animation: dep-pulse-source 1.5s infinite; }
-    .trace-step.dep-blocked { animation: dep-pulse-blocked 1.5s infinite; }
-    @keyframes dep-pulse-source {
-      0%,100%{background-color:rgba(34,197,94,0.3)}
-      50%{background-color:rgba(34,197,94,0.1)}
-    }
-    @keyframes dep-pulse-blocked {
-      0%,100%{background-color:rgba(239,68,68,0.3)}
-      50%{background-color:rgba(239,68,68,0.1)}
-    }
+    /* 基本样式与动画 */
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    .control-panel button.active { box-shadow:0 0 0 3px rgba(59,130,246,0.5); }
+    .toast { transition:opacity .3s,transform .3s; }
+    .toast.hide { opacity:0; transform:translateY(20px) translateX(-50%); }
+    .node-group:hover>circle { transform:scale(1.1); transition:transform .15s; }
+    .kempe-chain-highlight { stroke:#f59e0b!important; stroke-width:5px!important; stroke-dasharray:8 4; animation:dash 1s linear infinite; }
+    @keyframes dash { to{stroke-dashoffset:-24;} }
   </style>
 </head>
-<body class="bg-gray-900 text-gray-100 flex flex-col h-screen overflow-hidden">
+<body class="flex flex-col md:flex-row h-screen overflow-hidden">
 
-  <!-- Header -->
-  <header class="bg-gray-800/50 backdrop-blur-sm p-3 flex justify-between items-center shadow-lg z-10">
-    <div>
-      <h1 class="text-xl font-bold">四色定理：演绎迷踪</h1>
-      <p class="text-sm text-gray-400">Project Q.E.D. – An Interactive Formal Proof</p>
-    </div>
-    <div id="level-selector" class="flex items-center gap-2">
-      <span class="text-gray-400">关卡:</span>
-    </div>
-  </header>
-
-  <!-- Main -->
-  <main class="flex-1 flex overflow-hidden">
-
-    <!-- 左侧面板 -->
-    <aside class="w-1/3 max-w-md bg-gray-800/30 p-4 flex flex-col space-y-4 overflow-y-auto">
-      <!-- 算子面板 -->
-      <section>
-        <h2 class="text-lg font-semibold mb-2 border-b-2 border-gray-700 pb-1">算子面板 (Operators)</h2>
-        <div id="operator-panel" class="grid grid-cols-2 gap-2">
-          <!-- 调色板 -->
-          <div id="color-palette" class="col-span-2 grid grid-cols-4 gap-2">
-            <button data-color="c1" class="p-4 rounded-lg bg-red-500 hover:bg-red-600 disabled:bg-gray-600"></button>
-            <button data-color="c2" class="p-4 rounded-lg bg-blue-500 hover:bg-blue-600 disabled:bg-gray-600"></button>
-            <button data-color="c3" class="p-4 rounded-lg bg-green-500 hover:bg-green-600 disabled:bg-gray-600"></button>
-            <button data-color="c4" class="p-4 rounded-lg bg-yellow-500 hover:bg-yellow-600 disabled:bg-gray-600"></button>
-          </div>
-          <button id="op-cut"    class="p-2 bg-purple-600 hover:bg-purple-700 rounded-lg disabled:bg-gray-600">Cut(v)</button>
-          <button id="op-return" class="p-2 bg-purple-600 hover:bg-purple-700 rounded-lg disabled:bg-gray-600">Return</button>
-          <button id="op-invert" class="p-2 bg-teal-600 hover:bg-teal-700 rounded-lg disabled:bg-gray-600">Invert(K)</button>
-          <button id="op-undo"   class="p-2 bg-gray-500 hover:bg-gray-600 rounded-lg disabled:bg-gray-600">Undo</button>
-        </div>
-        <!-- Invert 细节 -->
-        <div id="invert-panel" class="hidden mt-4 p-3 bg-gray-700/50 rounded-lg">
-          <h3 class="text-md font-medium mb-2">选择 Kempe 链颜色对:</h3>
-          <div id="invert-color-selector" class="grid grid-cols-4 gap-2"></div>
-          <button id="invert-confirm" class="w-full mt-2 p-2 bg-teal-500 hover:bg-teal-600 rounded-lg disabled:bg-gray-600">确认交换</button>
-          <button id="invert-cancel"  class="w-full mt-2 p-2 bg-gray-500 hover:bg-gray-600 rounded-lg">取消</button>
-        </div>
-        <!-- Report 面板 -->
-        <div id="report-panel" class="hidden mt-4 p-3 bg-rose-900/50 rounded-lg">
-          <h3 class="text-md font-medium mb-2 text-rose-300">分析报告：依赖性冲突</h3>
-          <p id="report-text" class="text-sm mb-3"></p>
-          <button id="report-submit" class="w-full p-2 bg-rose-600 hover:bg-rose-700 rounded-lg">提交报告，确认理解</button>
-        </div>
-      </section>
-
-      <!-- 归纳栈 -->
-      <section>
-        <h2 class="text-lg font-semibold mb-2 border-b-2 border-gray-700 pb-1">归纳栈 (Stack)</h2>
-        <div id="induction-stack" class="bg-gray-900/50 p-2 rounded-lg min-h-[50px] text-center text-gray-500">空</div>
-      </section>
-
-      <!-- 证明轨迹 -->
-      <section class="flex-1 flex flex-col">
-        <h2 class="text-lg font-semibold mb-2 border-b-2 border-gray-700 pb-1">证明轨迹 (Proof Trace)</h2>
-        <div id="proof-trace" class="flex-1 bg-gray-900/50 p-2 rounded-lg overflow-y-auto space-y-1">
-          <!-- JS 注入 -->
-        </div>
-      </section>
-    </aside>
-
-    <!-- 右侧画布 -->
-    <div class="flex-1 flex flex-col p-4">
-      <div id="info-bar" class="mb-4 p-3 bg-gray-800/50 rounded-lg shadow-md text-center">
-        <p id="info-text" class="text-lg text-gray-300">选择一个顶点再执行操作。</p>
-      </div>
-      <div class="flex-1 bg-gray-800 rounded-lg shadow-inner overflow-hidden relative">
-        <svg id="graph-canvas" class="w-full h-full graph-canvas"></svg>
-        <div id="modal" class="hidden absolute inset-0 bg-black/70 flex items-center justify-center z-50">
-          <div class="bg-gray-800 p-8 rounded-xl shadow-2xl max-w-lg text-center border-2 border-purple-500">
-            <h2 id="modal-title" class="text-2xl font-bold mb-4"></h2>
-            <p id="modal-body" class="mb-6"></p>
-            <button id="modal-close" class="px-6 py-2 bg-purple-600 hover:bg-purple-700 rounded-lg">继续</button>
-          </div>
-        </div>
-      </div>
-    </div>
+  <!-- 主画布 -->
+  <main class="flex-1 flex items-center justify-center p-4">
+    <svg id="graphCanvas" width="100%" height="100%" viewBox="0 0 800 600" preserveAspectRatio="xMidYMid meet"></svg>
   </main>
 
-  <!-- 完整 JS（M0–M8）-->
-  <script type="module">
-  // --- M0 Utils ---
-  const UNCOLORED = null;
-  function deepClone(obj) {
-    if (obj===null||typeof obj!=='object') return obj;
-    if (obj instanceof Map) {
-      const m=new Map();
-      for(const [k,v] of obj.entries()) m.set(k,deepClone(v));
-      return m;
-    }
-    if (obj instanceof Set) {
-      const s=new Set();
-      for(const v of obj) s.add(deepClone(v));
-      return s;
-    }
-    if (Array.isArray(obj)) return obj.map(deepClone);
-    if (obj instanceof Date) return new Date(obj.getTime());
-    const out={};
-    for(const [k,v] of Object.entries(obj)) out[k]=deepClone(v);
-    return out;
-  }
-  function stableHash(obj) {
-    const str = JSON.stringify(obj, (k,v)=>{
-      if (v instanceof Map) return {__type:'Map', value:Array.from(v).sort()};
-      if (v instanceof Set) return {__type:'Set', value:Array.from(v).sort()};
-      return v;
-    });
-    let h=0;
-    for(let i=0;i<str.length;i++){ h=((h<<5)-h)+str.charCodeAt(i); h|=0; }
-    return (h>>>0).toString(16).padStart(8,'0');
-  }
+  <!-- 控制面板 -->
+  <aside class="w-full md:w-64 bg-white dark:bg-gray-800 p-4 border-t md:border-t-0 md:border-l border-gray-200 dark:border-gray-700 shadow-lg flex flex-col">
+    <h1 class="text-xl font-bold mb-2">四色定理证明</h1>
+    <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">体验从基础到核心的形式化演绎</p>
+    <div id="tutorial-box" class="text-xs bg-blue-50 dark:bg-blue-900/50 text-blue-800 dark:text-blue-200 p-3 rounded-lg mb-4 min-h-[60px]"></div>
+    <div id="actions-box" class="control-panel flex-1 space-y-2"></div>
+    <div class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700 space-y-3">
+      <h2 class="text-sm font-semibold text-gray-600 dark:text-gray-300">选项</h2>
+      <label class="flex items-center justify-between text-sm cursor-pointer">
+        <span>瞬时转换</span>
+        <input type="checkbox" id="instantToggle" class="toggle-switch sr-only peer">
+        <div class="w-11 h-6 bg-gray-200 peer-checked:bg-blue-600 rounded-full relative transition-colors"></div>
+      </label>
+      <label class="flex items-center justify-between text-sm cursor-pointer">
+        <span>色盲模式 (图案)</span>
+        <input type="checkbox" id="patternToggle" class="toggle-switch sr-only peer">
+        <div class="w-11 h-6 bg-gray-200 peer-checked:bg-blue-600 rounded-full relative transition-colors"></div>
+      </label>
+    </div>
+    <div class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between">
+      <button id="undoBtn" class="text-sm px-3 py-1 bg-gray-200 dark:bg-gray-700 rounded hover:bg-gray-300 dark:hover:bg-gray-600" disabled>撤回 (Ctrl+Z)</button>
+      <button id="redoBtn" class="text-sm px-3 py-1 bg-gray-200 dark:bg-gray-700 rounded hover:bg-gray-300 dark:hover:bg-gray-600" disabled>重做 (Ctrl+Y)</button>
+    </div>
+  </aside>
 
-  // --- M1 Graph ---
-  class Graph {
-    constructor(){
-      this.V=new Set();
-      this.E=new Set();
-      this.adj=new Map();
-      this.rotation=new Map();
-      this.positions=new Map();
-    }
-    addVertex(v, rotList=[], pos={x:0,y:0}) {
-      if(this.V.has(v)) throw new Error(`Vertex ${v} exists`);
-      this.V.add(v);
-      this.adj.set(v,new Set());
-      this.rotation.set(v,Array.from(rotList));
-      this.positions.set(v,{x:pos.x,y:pos.y});
-    }
-    addEdge(u,v) {
-      if(u===v) throw new Error(`Self-loop at ${u}`);
-      if(!this.V.has(u)||!this.V.has(v)) throw new Error(`Missing endpoint`);
-      const [a,b]=u<v?[u,v]:[v,u], key=`${a}-${b}`;
-      if(this.E.has(key)) throw new Error(`Parallel edge ${key}`);
-      this.E.add(key);
-      this.adj.get(u).add(v);
-      this.adj.get(v).add(u);
-      this.rotation.get(u).push(v);
-      this.rotation.get(v).push(u);
-    }
-    removeVertex(v){
-      if(!this.V.has(v)) throw new Error(`No ${v}`);
-      const neighbors=Array.from(this.adj.get(v));
-      const rot=Array.from(this.rotation.get(v));
-      const pos={...this.positions.get(v)};
-      for(const u of neighbors){
-        this.adj.get(u).delete(v);
-        const [a,b]=u<v?[u,v]:[v,u];
-        this.E.delete(`${a}-${b}`);
-        this.rotation.set(u,this.rotation.get(u).filter(x=>x!==v));
-      }
-      this.V.delete(v);
-      this.adj.delete(v);
-      this.rotation.delete(v);
-      this.positions.delete(v);
-      return {v,neighbors,rot,pos};
-    }
-    neighbors(v){
-      if(!this.V.has(v)) throw new Error(`No ${v}`);
-      return Array.from(this.adj.get(v));
-    }
-    clone(){
-      const g2=new Graph();
-      for(const v of this.V){
-        g2.V.add(v);
-        g2.adj.set(v,new Set(this.adj.get(v)));
-        g2.rotation.set(v,Array.from(this.rotation.get(v)));
-        g2.positions.set(v,{...this.positions.get(v)});
-      }
-      for(const e of this.E) g2.E.add(e);
-      return g2;
-    }
-    isPlanar(){ return true; /* TODO: embed Boyer–Myrvold */ }
-    static fromData(data){
-      const g=new Graph();
-      for(const v of data.vertices) g.addVertex(v.id,v.rot||[],v.pos);
-      for(const [u,v] of data.edges) g.addEdge(u,v);
-      if(!g.isPlanar()) throw new Error("Not planar");
-      return g;
-    }
-  }
+  <!-- Toast -->
+  <div id="toast" class="fixed bottom-4 left-1/2 -translate-x-1/2 bg-gray-900 text-white px-4 py-2 rounded-lg shadow-xl text-sm opacity-0 transform translate-y-5 hide"></div>
 
-  // --- M2 State & Predicates ---
-  class GameState {
-    constructor(graph,phi){
-      this.graph=graph;
-      this.phi=phi;
-      this.hash=stableHash({adj:graph.adj,phi});
+  <script>
+  /************************************************************************
+   * 1. ENGINE CORE                                                       *
+   ************************************************************************/
+  (function(exports) {
+    'use strict';
+    const SAVE_KEY = '4color_save_v6';
+    const DEBUG = new URLSearchParams(location.search).get('debug')==='true';
+
+    function deepClone(obj, hash=new WeakMap()) {
+      if (Object(obj)!==obj) return obj;
+      if (hash.has(obj)) return hash.get(obj);
+      let result;
+      if (obj instanceof Map) { result=new Map(); hash.set(obj,result); obj.forEach((v,k)=>result.set(deepClone(k,hash),deepClone(v,hash))); return result; }
+      if (obj instanceof Set) { result=new Set(); hash.set(obj,result); obj.forEach(v=>result.add(deepClone(v,hash))); return result; }
+      if (Array.isArray(obj)) { result=[]; hash.set(obj,result); obj.forEach((v,i)=>result[i]=deepClone(v,hash)); return result; }
+      if (obj instanceof Date) return new Date(obj);
+      result={}; hash.set(obj,result);
+      for(const k in obj) if(obj.hasOwnProperty(k)) result[k]=deepClone(obj[k],hash);
+      return result;
     }
-    clone(){
-      return new GameState(this.graph.clone(),deepClone(this.phi));
+
+    function saveState(s) {
+      try { localStorage.setItem(SAVE_KEY, JSON.stringify(s)); }
+      catch(e){ console.error('保存失败',e); }
     }
-  }
-  const Predicates={
-    isProper(s){
-      for(const e of s.graph.E){
-        const [u,v]=e.split('-');
-        const cu=s.phi.get(u), cv=s.phi.get(v);
-        if(cu!==UNCOLORED && cu===cv) return false;
+    function loadState() {
+      try { return JSON.parse(localStorage.getItem(SAVE_KEY)||'null'); }
+      catch{ return null; }
+    }
+    function clearState(){ localStorage.removeItem(SAVE_KEY); }
+
+    class Graph {
+      constructor(nodes, edges) {
+        this.nodes = nodes.map(n=>({...n}));
+        this.edges = edges.map(e=>[...e]);
+        this.adj = new Map();
+        this.nodes.forEach(n=>this.adj.set(n.id,new Set()));
+        this.edges.forEach(([u,v])=>{ this.adj.get(u).add(v); this.adj.get(v).add(u); });
       }
-      return true;
-    },
-    isFullyColored(s){
-      for(const v of s.graph.V) if(s.phi.get(v)===UNCOLORED) return false;
-      return true;
-    },
-    isWinning(s){ return this.isProper(s)&&this.isFullyColored(s); }
-  };
-  const Kempe={
-    computeChain(s,root,a,b){
-      if(!s.graph.V.has(root)) return [];
-      const q=[root], vis=new Set([root]), chain=[];
-      const pick=new Set([a,b]);
+      degree(id){ return this.adj.get(id)?.size||0; }
+      neighbors(id){ return [...(this.adj.get(id)||[])]; }
+      getNode(id){ return this.nodes.find(n=>n.id===id); }
+      clone(){ return new Graph(this.nodes,this.edges); }
+    }
+
+    // 导出至全局：解决 L3 中作用域问题
+    window.getKempeChain = (G,c,start,k1,k2=>{
+      const q=[start], vis=new Set([start]), chain=[];
       while(q.length){
         const u=q.shift(); chain.push(u);
-        for(const w of s.graph.neighbors(u)){
-          if(!vis.has(w) && pick.has(s.phi.get(w))){
-            vis.add(w); q.push(w);
+        for(const v of G.neighbors(u)){
+          if(!vis.has(v)&&(c[v]===k1||c[v]===k2)){
+            vis.add(v); q.push(v);
           }
         }
       }
-      return chain.sort((x,y)=>String(x).localeCompare(y));
-    },
-    checkDependency(s,op1,op2){
-      const before=this.computeChain(s,op2.args.root,op2.args.a,op2.args.b);
-      const after=this.computeChain(op1.execute(s.clone()),op2.args.root,op2.args.a,op2.args.b);
-      return stableHash(before)!==stableHash(after); // ≤ syntax is correct: !==
-    }
-  };
+      return chain;
+    });
 
-  // --- M3 Operators ---
-  class Operator{ constructor(name,args){this.op=name;this.args=args;} }
-  class AssignOp extends Operator{
-    constructor(v,c){super('Assign',{v,c});}
-    execute(s){const t=s.clone();t.phi.set(this.args.v,this.args.c);return t;}
-    domain(){return new Set([this.args.v]);}
-  }
-  class CutOp extends Operator{
-    constructor(v){super('Cut',{v});}
-    execute(s){const t=s.clone();const mem=t.graph.removeVertex(this.args.v);mem.phi_v=s.phi.get(this.args.v);t.phi.delete(this.args.v);Game.inductionStack.push(mem);return t;}
-    domain(){return new Set([this.args.v]);}
-  }
-  class ReturnOp extends Operator{
-    constructor(){super('Return',{});}
-    execute(s){if(!Game.inductionStack.length) return s;const t=s.clone();const mem=Game.inductionStack.pop();t.graph.addVertex(mem.v,mem.rot,mem.pos);for(const u of mem.neighbors)t.graph.addEdge(mem.v,u);t.phi.set(mem.v,UNCOLORED);return t;}
-    domain(){const top=Game.inductionStack[Game.inductionStack.length-1];return top?new Set([top.v]):new Set();}
-  }
-  class InvertOp extends Operator{
-    constructor(root,a,b){super('Invert',{root,a,b});}
-    computeDomain(s){return new Set(Kempe.computeChain(s,this.args.root,this.args.a,this.args.b));}
-    execute(s){const t=s.clone();const chain=Kempe.computeChain(t,this.args.root,this.args.a,this.args.b);for(const v of chain){if(t.phi.get(v)===this.args.a) t.phi.set(v,this.args.b); else if(t.phi.get(v)===this.args.b) t.phi.set(v,this.args.a);}return t;}
-  }
+    const ACTIONS = {
+      COLOR_VERTEX: 'COLOR_VERTEX',
+      SELECT_KEMPE_PAIR: 'SELECT_KEMPE_PAIR',
+      FLIP_KEMPE: 'FLIP_KEMPE',
+      _SET_UI_STATE: '_SET_UI_STATE'
+    };
 
-  // --- M4 TraceManager ---
-  class TraceManager{
-    constructor(){this.trace=[];}
-    addStep(op,oldS,newS,extra={}){const dom=op.domain? (typeof op.domain==='function'?op.domain(oldS):op.domain): (op.computeDomain?op.computeDomain(oldS):new Set());this.trace.push({idx:this.trace.length,op:op.op,args:deepClone(op.args),pre_hash:oldS.hash,post_hash:newS.hash,domain:dom,legal:true,...extra});}
-    addAttempt(op,by){this.trace.push({idx:this.trace.length,op:`Attempt${op.op}`,args:deepClone(op.args),blocked_by:by,state_unchanged:true,legal:false,domain:new Set()});}
-    undo(){
-      if(!this.trace.length) return null;
-      this.trace.pop();
-      Game.inductionStack=[];
-      let s=LevelManager.getInitialState(Game.currentLevelId);
-      for(const step of this.trace){
-        const C={Assign:AssignOp,Cut:CutOp,Return:ReturnOp,Invert:InvertOp}[step.op];
-        if(C&&step.legal){s=new C(...Object.values(step.args)).execute(s);}
+    const Graphs = {
+      L1_COLORING: {
+        nodes:[{id:0,x:250,y:300},{id:1,x:400,y:300},{id:2,x:550,y:300}],
+        edges:[[0,1],[1,2]]
+      },
+      L2_INDUCTION: {
+        nodes:[{id:0,x:300,y:200},{id:1,x:500,y:200},{id:2,x:500,y:400},{id:3,x:300,y:400},{id:4,x:400,y:300}],
+        edges:[[0,1],[1,2],[2,3],[3,0],[0,4],[1,4],[2,4],[3,4]],
+        vStar:4,
+        // 修正 preset：邻居颜色 {1,2,3,1} → 唯一可用 color=4
+        preset:{0:1,1:2,2:3,3:1,4:0}
+      },
+      L3_KEMPE: {
+        nodes:[{id:0,x:400,y:150},{id:1,x:550,y:300},{id:2,x:400,y:450},{id:3,x:250,y:300},{id:4,x:400,y:300},{id:5,x:320,y:150},{id:6,x:480,y:150}],
+        edges:[[0,4],[1,4],[2,4],[3,4],[0,5],[0,6],[5,6]],
+        vStar:4,
+        preset:{0:1,1:2,2:3,3:4,4:0,5:2,6:3}
+      },
+      L4_REDUCTION: {
+        nodes:[
+          {id:0,x:400,y:100},{id:1,x:300,y:200},{id:2,x:500,y:200},{id:3,x:400,y:250},
+          {id:4,x:300,y:350},{id:5,x:500,y:350},{id:6,x:400,y:400},{id:7,x:400,y:500}
+        ],
+        edges:[[0,1],[0,2],[1,3],[2,3],[1,4],[3,4],[3,5],[2,5],[4,6],[5,6],[6,7]]
       }
-      return s;
-    }
-    getCanonicalTrace(){return this.trace;}
-  }
+    };
 
-  // --- M5 GoalChecker ---
-  const GoalChecker={
-    predicates:{
-      win_by_coloring:(S,T)=>Predicates.isWinning(S),
-      win_by_induction:(S,T)=>Predicates.isWinning(S)&&T.some(t=>t.op==='Cut')&&T.some(t=>t.op==='Return'),
-      win_by_kempe:(S,T)=>Predicates.isWinning(S)&&T.some(t=>t.op==='Invert'),
-      win_by_dependency:(S,T)=>T.some(t=>t.op==='SubmitReport')
-    },
-    check(lv,S,T){if(this.predicates[LevelManager.levels[lv].goal]?.(S,T)) UI.showModal(`关卡 ${lv} 完成!`,LevelManager.levels[lv].winMessage);}
-  };
-
-  // --- M6 LevelManager ---
-  const LevelManager={
-    levels:{
-      L0:{name:"L0: 基础着色", goal:"win_by_coloring", winMessage:"…", data:{vertices:[{id:0,pos:{x:20,y:50}},{id:1,pos:{x:50,y:50}},{id:2,pos:{x:80,y:50}}], edges:[[0,1],[1,2]]}},
-      L1:{name:"L1: 归纳法",       goal:"win_by_induction", winMessage:"…", data:{vertices:[{id:0,pos:{x:25,y:25}},{id:1,pos:{x:75,y:25}},{id:2,pos:{x:75,y:75}},{id:3,pos:{x:25,y:75}},{id:4,pos:{x:50,y:50}}], edges:[[0,1],[1,2],[2,3],[3,0],[0,4],[1,4],[2,4],[3,4]]}},
-      L2:{name:"L2: Kempe 链",     goal:"win_by_kempe",     winMessage:"…", data:{vertices:[{id:0,pos:{x:50,y:10}},{id:1,pos:{x:90,y:50}},{id:2,pos:{x:50,y:90}},{id:3,pos:{x:10,y:50}},{id:4,pos:{x:50,y:50}},{id:5,pos:{x:30,y:10}},{id:6,pos:{x:70,y:10}}], edges:[[0,4],[1,4],[2,4],[3,4],[0,5],[0,6],[5,6]]}},
-      L4_BOSS:{name:"L4: 依赖性危机",goal:"win_by_dependency",winMessage:"…",data:{vertices:[{id:0,pos:{x:50,y:5}},{id:1,pos:{x:20,y:25}},{id:2,pos:{x:80,y:25}},{id:3,pos:{x:50,y:40}},{id:4,pos:{x:20,y:65}},{id:5,pos:{x:80,y:65}},{id:6,pos:{x:50,y:80}},{id:7,pos:{x:50,y:95}}], edges:[[0,1],[0,2],[1,3],[2,3],[1,4],[3,4],[3,5],[2,5],[4,6],[5,6],[6,7]]}}
-    },
-    initialStates:new Map(),
-    init(){
-      for(const [id,lvl] of Object.entries(this.levels)){
-        const g=Graph.fromData(lvl.data);
-        const phi=new Map();
-        for(const v of g.V) phi.set(v,UNCOLORED);
-        if(id==='L2'){
-          phi.set(0,'c1');phi.set(1,'c2');phi.set(2,'c3');phi.set(3,'c4');phi.set(5,'c2');phi.set(6,'c3');
-        }
-        if(id==='L4_BOSS'){
-          phi.set(0,'c1');phi.set(7,'c1');phi.set(1,'c2');phi.set(2,'c3');phi.set(4,'c3');phi.set(5,'c2');phi.set(6,'c4');
-        }
-        this.initialStates.set(id,new GameState(g,phi));
+    class GameEngine {
+      constructor(saved=null) {
+        this.subs=[];
+        this.history=[];
+        this.redoStack=[];
+        const loaded = saved||loadState();
+        this.state = loaded||this._bootstrap();
+        if(DEBUG){ window.__GE__=this; console.log('Debug模式'); }
       }
-    },
-    getInitialState(id){ return this.initialStates.get(id).clone(); }
-  };
-
-  // --- M7 UIManager ---
-  let UI;
-  class UIManager {
-    constructor(){
-      this.svg=document.getElementById('graph-canvas');
-      this.infoText=document.getElementById('info-text');
-      this.opPanel=document.getElementById('operator-panel');
-      this.tracePanel=document.getElementById('proof-trace');
-      this.stackPanel=document.getElementById('induction-stack');
-      this.invertPanel=document.getElementById('invert-panel');
-      this.reportPanel=document.getElementById('report-panel');
-      this.modal=document.getElementById('modal');
-      this.modalTitle=document.getElementById('modal-title');
-      this.modalBody=document.getElementById('modal-body');
-      this.vb={x:0,y:0,w:100,h:100};
-      this.isPanning=false;
-      this.startPt={x:0,y:0};
-    }
-    init(){
-      UI=this;
-      // 关卡按钮
-      const sel=document.getElementById('level-selector');
-      for(const id of Object.keys(LevelManager.levels)){
-        const btn=document.createElement('button');
-        btn.textContent=id;
-        btn.className='px-3 py-1 rounded-md bg-gray-700 hover:bg-purple-600';
-        btn.onclick=()=>Game.loadLevel(id);
-        sel.appendChild(btn);
+      _bootstrap(){
+        const g=new Graph(Graphs.L1_COLORING.nodes,Graphs.L1_COLORING.edges);
+        const c={}; g.nodes.forEach(n=>c[n.id]=0);
+        return { layer:'L1_COLORING', sigma:{G:g,c:c}, uiState:{currentColor:1,instant:false,usePattern:false} };
       }
-      // 画布交互
-      this.svg.addEventListener('wheel',this.onZoom.bind(this),{passive:false});
-      this.svg.addEventListener('pointerdown',this.onPointerDown.bind(this));
-      this.svg.addEventListener('pointerup',this.onPointerUp.bind(this));
-      this.svg.addEventListener('pointerleave',this.onPointerUp.bind(this));
-      this.svg.addEventListener('pointermove',this.onPointerMove.bind(this));
-      // 算子绑定
-      document.getElementById('op-cut').onclick=()=>Game.handleOperator('Cut');
-      document.getElementById('op-return').onclick=()=>Game.handleOperator('Return');
-      document.getElementById('op-invert').onclick=()=>this.showInvertPanel();
-      document.getElementById('op-undo').onclick=()=>Game.handleOperator('Undo');
-      document.getElementById('invert-cancel').onclick=()=>this.hideInvertPanel();
-      document.getElementById('invert-confirm').onclick=()=>{
-        const sel=this.invertPanel.querySelector('input[name="color-pair"]:checked');
-        if(sel){
-          const [a,b]=sel.value.split(',');
-          Game.handleOperator('Invert',{a,b});
-          this.hideInvertPanel();
+      subscribe(fn){ this.subs.push(fn); }
+      _notify(action){ this.subs.forEach(fn=>fn(this.state,action)); }
+      dispatch(action){
+        const prev=deepClone(this.state);
+        const next=_transition(prev,action);
+        // 仅当真的变更时记录历史
+        if(JSON.stringify(next)!==JSON.stringify(this.state)){
+          this.history.push(this.state);
+          this.redoStack=[];
+          this.state=next;
         }
+        this._notify(action);
+        saveState(this.state);
+      }
+      undo(){
+        if(this.history.length===0) return;
+        this.redoStack.push(this.state);
+        this.state=this.history.pop();
+        this._notify({type:'__UNDO__'});
+        saveState(this.state);
+      }
+      redo(){
+        if(this.redoStack.length===0) return;
+        this.history.push(this.state);
+        this.state=this.redoStack.pop();
+        this._notify({type:'__REDO__'});
+        saveState(this.state);
+      }
+    }
+
+    function _transition(state, action) {
+      const s = deepClone(state);
+      const { layer, sigma, uiState } = s;
+      if(action.type===ACTIONS._SET_UI_STATE){
+        return {...s, uiState:{...uiState,...action.payload}};
+      }
+      const σ = deepClone(sigma);
+      switch(action.type){
+        case ACTIONS.COLOR_VERTEX:
+          σ.c[action.payload.v]=action.payload.k; break;
+        case ACTIONS.SELECT_KEMPE_PAIR:
+          σ.kempePair=action.payload.pair; break;
+        case ACTIONS.FLIP_KEMPE:
+          const [a,b]=σ.kempePair;
+          action.payload.chain.forEach(v=>{
+            σ.c[v] = σ.c[v]===a?b:a;
+          });
+          σ.kempePair=null;
+          break;
+        default:
+          console.warn('未知 Action:',action);
+      }
+      // Properness 检查
+      for(const [u,v] of σ.G.edges){
+        if(σ.c[u]!==0 && σ.c[u]===σ.c[v]){
+          throw new Error('非法着色：相邻顶点颜色冲突');
+        }
+      }
+      // 检查是否达成本层目标
+      const goals = {
+        L1_COLORING: σ=>Object.values(σ.c).every(x=>x!==0),
+        L2_INDUCTION: σ=>σ.c[Graphs.L2_INDUCTION.vStar]!==0,
+        L3_KEMPE: σ=>σ.c[Graphs.L3_KEMPE.vStar]!==0,
+        L4_REDUCTION: ()=>false
       };
-      document.getElementById('report-submit').onclick=()=>{
-        Game.handleOperator('SubmitReport');
-        this.hideReportPanel();
-      };
-      document.getElementById('modal-close').onclick=()=>this.hideModal();
-      // 调色板
-      document.querySelectorAll('#color-palette button').forEach(btn=>{
-        btn.onclick=()=>Game.handleOperator('Assign',{color:btn.dataset.color});
-      });
-    }
-    render(s){
-      this.renderGraph(s);
-      this.renderTrace(Game.traceManager.trace);
-      this.renderStack(Game.inductionStack);
-      this.updateOperatorPanel(s);
-    }
-    renderGraph(s){
-      const svg=this.svg; svg.innerHTML='';
-      const g=s.graph;
-      // 计算 viewBox
-      const xs=Array.from(g.V).map(v=>g.positions.get(v).x);
-      const ys=Array.from(g.V).map(v=>g.positions.get(v).y);
-      const minX=Math.min(...xs), maxX=Math.max(...xs);
-      const minY=Math.min(...ys), maxY=Math.max(...ys);
-      const pad=20;
-      this.vb.x=minX-pad; this.vb.y=minY-pad;
-      this.vb.w=(maxX-minX)+2*pad; this.vb.h=(maxY-minY)+2*pad;
-      svg.setAttribute('viewBox',`${this.vb.x} ${this.vb.y} ${this.vb.w} ${this.vb.h}`);
-      // 边
-      const eg=document.createElementNS('http://www.w3.org/2000/svg','g');
-      for(const key of g.E){
-        const [u,v]=key.split('-').map(Number);
-        const pu=g.positions.get(u), pv=g.positions.get(v);
-        const ln=document.createElementNS('http://www.w3.org/2000/svg','line');
-        ln.setAttribute('x1',pu.x); ln.setAttribute('y1',pu.y);
-        ln.setAttribute('x2',pv.x); ln.setAttribute('y2',pv.y);
-        ln.classList.add('edge');
-        if(s.phi.get(u)!==UNCOLORED && s.phi.get(u)===s.phi.get(v)){
-          ln.classList.add('conflict');
+      if(goals[layer] && goals[layer](σ)){
+        // 自动推进到下一层
+        const order=['L1_COLORING','L2_INDUCTION','L3_KEMPE','L4_REDUCTION','Z_WIN'];
+        const idx=order.indexOf(layer);
+        const next=order[idx+1];
+        let nextSigma;
+        switch(next){
+          case 'L2_INDUCTION':
+            nextSigma={
+              G:new Graph(Graphs.L2_INDUCTION.nodes,Graphs.L2_INDUCTION.edges),
+              c: deepClone(Graphs.L2_INDUCTION.preset),
+              vStar:Graphs.L2_INDUCTION.vStar
+            };
+            break;
+          case 'L3_KEMPE':
+            nextSigma={
+              G:new Graph(Graphs.L3_KEMPE.nodes,Graphs.L3_KEMPE.edges),
+              c: deepClone(Graphs.L3_KEMPE.preset),
+              vStar:Graphs.L3_KEMPE.vStar,
+              kempePair:null
+            };
+            break;
+          case 'L4_REDUCTION':
+            const g4=new Graph(Graphs.L4_REDUCTION.nodes,Graphs.L4_REDUCTION.edges);
+            const c4={}; g4.nodes.forEach(n=>c4[n.id]=0);
+            nextSigma={G:g4,c:c4};
+            break;
+          case 'Z_WIN':
+            nextSigma={};
+            break;
+          default:
+            nextSigma=σ;
         }
-        eg.appendChild(ln);
+        return { layer:next, sigma:nextSigma, uiState };
       }
-      svg.appendChild(eg);
-      // 顶点
-      const vg=document.createElementNS('http://www.w3.org/2000/svg','g');
-      for(const v of g.V){
-        const pos=g.positions.get(v), col=s.phi.get(v);
-        const c=document.createElementNS('http://www.w3.org/2000/svg','circle');
-        c.setAttribute('cx',pos.x); c.setAttribute('cy',pos.y); c.setAttribute('r',5);
-        // —— 核心修复：用 style.fill/stroke 而非 fill 属性
-        c.style.fill   = col? `var(--${col})` : `var(--c-uncolored-bg)`;
-        c.style.stroke = col? 'none' : `var(--c-uncolored)`;
-        c.style.strokeWidth = '1.5';
-        c.dataset.id=v; c.classList.add('vertex');
-        if(v===Game.selectedVertex) c.classList.add('selected');
-        c.onclick=()=>Game.selectVertex(v);
-        vg.appendChild(c);
-        const t=document.createElementNS('http://www.w3.org/2000/svg','text');
-        t.setAttribute('x',pos.x); t.setAttribute('y',pos.y+1.5);
-        t.setAttribute('text-anchor','middle'); t.setAttribute('font-size','4');
-        t.textContent=v; t.style.fill=col?'white':'black';
-        t.style.pointerEvents='none';
-        vg.appendChild(t);
-      }
-      svg.appendChild(vg);
+      return { layer, sigma:σ, uiState };
     }
-    renderTrace(trace){
-      this.tracePanel.innerHTML='';
-      if(!trace.length){
-        this.tracePanel.innerHTML='<p class="text-gray-500 text-center">轨迹为空</p>';
-        return;
-      }
-      trace.forEach(st=>{
-        const d=document.createElement('div');
-        d.className='trace-step p-2 rounded-md bg-gray-800 text-sm';
-        let txt=`<b>${st.idx}:</b> ${st.op}(${JSON.stringify(st.args)})`;
-        if(st.dep_flag){
-          d.classList.add('bg-rose-800/50','dep-blocked');
-          txt+=` <span class="font-bold text-rose-400">[依赖于 #${st.blocked_by}]</span>`;
-          const src=this.tracePanel.querySelector(`[data-idx="${st.blocked_by}"]`);
-          if(src) src.classList.add('dep-source');
-        }
-        d.innerHTML=txt; d.dataset.idx=st.idx;
-        this.tracePanel.appendChild(d);
-      });
-      this.tracePanel.scrollTop=this.tracePanel.scrollHeight;
-    }
-    renderStack(stack){
-      this.stackPanel.innerHTML='';
-      if(!stack.length){
-        this.stackPanel.innerHTML='<p class="text-gray-500">空</p>'; return;
-      }
-      stack.forEach(mem=>{
-        const d=document.createElement('div');
-        d.className='p-1 bg-purple-900/50 rounded text-center';
-        d.textContent=`M(${mem.v})`;
-        this.stackPanel.prepend(d);
-      });
-    }
-    updateOperatorPanel(s){
-      const v=Game.selectedVertex, has= v!==null;
-      const col= has? s.phi.get(v) : UNCOLORED;
-      document.querySelectorAll('#color-palette button').forEach(b=>b.disabled=!has||col!==UNCOLORED);
-      document.getElementById('op-cut').disabled = !has;
-      document.getElementById('op-return').disabled = Game.inductionStack.length===0;
-      document.getElementById('op-invert').disabled = !has||col===UNCOLORED;
-      document.getElementById('op-undo').disabled = Game.traceManager.trace.length===0;
-    }
-    showInvertPanel(){
-      if(Game.selectedVertex===null) return;
-      const v=Game.selectedVertex;
-      const neigh=Game.state.graph.neighbors(v);
-      const nc=new Set(neigh.map(u=>Game.state.phi.get(u)).filter(c=>c!==UNCOLORED));
-      const arr=Array.from(nc), pairs=[];
-      for(let i=0;i<arr.length;i++) for(let j=i+1;j<arr.length;j++) pairs.push([arr[i],arr[j]]);
-      const selDiv=document.getElementById('invert-color-selector');
-      selDiv.innerHTML='';
-      document.getElementById('invert-confirm').disabled = pairs.length===0;
-      if(!pairs.length){
-        selDiv.innerHTML='<p class="text-sm text-gray-400 col-span-4">没有可用的颜色对。</p>';
-      }
-      pairs.forEach(([a,b],i)=>{
-        const id=`pair-${i}`;
-        const d=document.createElement('div');
-        d.className='col-span-2 flex items-center gap-2';
-        d.innerHTML=`
-          <input type="radio" name="color-pair" value="${a},${b}" id="${id}" class="hidden peer">
-          <label for="${id}" class="w-full flex items-center justify-center gap-2 p-2 rounded-lg border-2 border-gray-600 cursor-pointer peer-checked:border-teal-500 peer-checked:bg-teal-900/50">
-            <span class="w-4 h-4 rounded-full" style="background-color:var(--${a})"></span>
-            <span class="w-4 h-4 rounded-full" style="background-color:var(--${b})"></span>
-          </label>`;
-        selDiv.appendChild(d);
-      });
-      this.invertPanel.classList.remove('hidden');
-    }
-    hideInvertPanel(){ this.invertPanel.classList.add('hidden'); }
-    showReportPanel(idx,args){
-      this.reportPanel.classList.remove('hidden');
-      document.getElementById('report-text').textContent = 
-        `你发现 Invert(${args.root},${args.a},${args.b}) 被轨迹 #${idx} 影响。`;
-      Game.reportContext={idx,args};
-    }
-    hideReportPanel(){ this.reportPanel.classList.add('hidden'); }
-    showModal(t, b){ this.modalTitle.textContent=t; this.modalBody.textContent=b; this.modal.classList.remove('hidden'); }
-    hideModal(){ this.modal.classList.add('hidden'); }
-    onZoom(e){
-      e.preventDefault();
-      const s = e.deltaY<0?0.9:1.1;
-      const pt = this.getSVGPoint(e.clientX,e.clientY);
-      this.vb.x = (this.vb.x-pt.x)*s+pt.x;
-      this.vb.y = (this.vb.y-pt.y)*s+pt.y;
-      this.vb.w *= s; this.vb.h *= s;
-      this.svg.setAttribute('viewBox',`${this.vb.x} ${this.vb.y} ${this.vb.w} ${this.vb.h}`);
-    }
-    onPointerDown(e){
-      if(e.target!==this.svg) return;
-      this.isPanning=true;
-      this.startPt=this.getSVGPoint(e.clientX,e.clientY);
-      this.svg.style.cursor='grabbing';
-    }
-    onPointerUp(e){
-      this.isPanning=false;
-      this.svg.style.cursor='grab';
-    }
-    onPointerMove(e){
-      if(!this.isPanning) return;
-      e.preventDefault();
-      const pt=this.getSVGPoint(e.clientX,e.clientY);
-      this.vb.x -= (pt.x-this.startPt.x);
-      this.vb.y -= (pt.y-this.startPt.y);
-      this.svg.setAttribute('viewBox',`${this.vb.x} ${this.vb.y} ${this.vb.w} ${this.vb.h}`);
-    }
-    getSVGPoint(x,y){
-      const pt=this.svg.createSVGPoint();
-      pt.x=x; pt.y=y;
-      return pt.matrixTransform(this.svg.getScreenCTM().inverse());
-    }
-  }
 
-  // --- M8 Game ---
-  const Game = {
-    state:null, traceManager:null, inductionStack:[], selectedVertex:null, currentLevelId:null, reportContext:null,
-    init(){
-      LevelManager.init();
-      this.traceManager=new TraceManager();
-      this.inductionStack=[];
-      this.uiManager=new UIManager();
-      this.uiManager.init();
-      this.loadLevel('L0');
-    },
-    loadLevel(id){
-      this.currentLevelId=id;
-      this.state=LevelManager.getInitialState(id);
-      this.traceManager=new TraceManager();
-      this.inductionStack=[];
-      this.selectedVertex=null;
-      UI.hideInvertPanel();
-      UI.hideReportPanel();
-      UI.hideModal();
-      UI.render(this.state);
-      UI.infoText.textContent = LevelManager.levels[id].name;
-      document.querySelectorAll('#level-selector button').forEach(b=>{
-        b.classList.toggle('bg-purple-600',b.textContent===id);
-        b.classList.toggle('bg-gray-700',b.textContent!==id);
-      });
-    },
-    selectVertex(v){
-      this.selectedVertex = (this.selectedVertex===v?null:v);
-      UI.render(this.state);
-    },
-    handleOperator(op,args={}){
-      if(op==='Undo'){
-        const prev=this.traceManager.undo();
-        if(prev){ this.state=prev; UI.render(this.state); }
-        return;
+    exports.GameEngine=GameEngine;
+    exports.ACTIONS=ACTIONS;
+    exports.clearState=clearState;
+  })(window);
+  </script>
+
+  <script>
+  /************************************************************************
+   * 2. RENDERER & UI                                                     *
+   ************************************************************************/
+  (function(){
+    'use strict';
+    const svg = d3.select('#graphCanvas');
+    const toastEl = document.getElementById('toast');
+    let toastTimeout;
+
+    function pushToast(msg,type='info'){
+      clearTimeout(toastTimeout);
+      toastEl.textContent=msg;
+      toastEl.className='fixed bottom-4 left-1/2 -translate-x-1/2 px-4 py-2 rounded-lg text-sm shadow-xl transition-all';
+      toastEl.classList.add(type==='error'?'bg-red-600':'bg-gray-900');
+      toastEl.classList.remove('hide','opacity-0','translate-y-5');
+      toastTimeout=setTimeout(()=>{
+        toastEl.classList.add('hide','opacity-0','translate-y-5');
+      },3000);
+    }
+
+    const COLORS = [
+      {id:1,fill:'#e74c3c',pattern:'url(#pat-stripes)'},
+      {id:2,fill:'#3498db',pattern:'url(#pat-dots)'},
+      {id:3,fill:'#2ecc71',pattern:'url(#pat-cross)'},
+      {id:4,fill:'#f1c40f',pattern:'url(#pat-grid)'}
+    ];
+    const COLOR_ZERO='#bdc3c7';
+
+    // 初始化 patterns
+    (()=>{
+      if(svg.select('defs').empty()){
+        const defs=svg.append('defs');
+        const addPat=(id,d,sw=1)=>{
+          const p=defs.append('pattern').attr('id',id).attr('patternUnits','userSpaceOnUse').attr('width',8).attr('height',8);
+          p.append('rect').attr('width',8).attr('height',8).attr('fill','rgba(255,255,255,0.9)');
+          p.append('path').attr('d',d).attr('stroke','#333').attr('stroke-width',sw).attr('stroke-linecap','square');
+        };
+        addPat('pat-stripes','M-2,2 L2,-2 M0,8 L8,0 M6,10 L10,6');
+        addPat('pat-dots','M2,2 H2 V2 M6,6 H6 V6',2);
+        addPat('pat-cross','M0,0L8,8 M8,0L0,8');
+        addPat('pat-grid','M4,0 V8 M0,4 H8');
       }
-      if(op==='SubmitReport'){
-        const rpt={op:'SubmitReport',args:this.reportContext};
-        this.traceManager.addStep(rpt,this.state,this.state);
-        UI.render(this.state);
-        GoalChecker.check(this.currentLevelId,this.state,this.traceManager.trace);
-        return;
+    })();
+
+    function getFill(k,ui){
+      if(k===0) return COLOR_ZERO;
+      const c=COLORS.find(x=>x.id===k);
+      return ui.usePattern?c.pattern:c.fill;
+    }
+
+    const RENDERERS={};
+
+    function render(state,action){
+      if(!state) return;
+      const {layer,sigma,uiState}=state;
+      const fn=RENDERERS[layer]||RENDERERS.Z_WIN;
+      try{
+        fn(sigma,uiState);
+        updateTutorial(layer);
+        updateUndoRedo();
+        if(action?.type==='__ERROR__') pushToast(action.payload,'error');
+      }catch(e){
+        console.error('渲染错误',e);
+        pushToast('渲染时出错，请查看控制台','error');
       }
-      const oldS=this.state; let newS, operator;
-      const v=this.selectedVertex;
-      switch(op){
-        case 'Assign':
-          if(v===null){ UI.infoText.textContent='错误: 请选择顶点'; return; }
-          operator=new AssignOp(v,args.color);
-          newS = operator.execute(oldS.clone());
-          if(!Predicates.isProper(newS)){ UI.infoText.textContent='错误: 非法着色'; return; }
-          break;
-        case 'Cut':
-          if(v===null){ UI.infoText.textContent='错误: 请选择顶点'; return; }
-          operator=new CutOp(v);
-          newS = operator.execute(oldS);
-          break;
-        case 'Return':
-          if(!this.inductionStack.length){ UI.infoText.textContent='无可返还'; return; }
-          operator=new ReturnOp();
-          newS = operator.execute(oldS);
-          break;
-        case 'Invert':
-          if(v===null){ UI.infoText.textContent='错误: 请选择顶点'; return; }
-          operator=new InvertOp(v,args.a,args.b);
-          for(let i=this.traceManager.trace.length-1;i>=0;i--){
-            const prev=this.traceManager.trace[i];
-            if(prev.op!=='Invert') continue;
-            const prevOp=new InvertOp(...Object.values(prev.args));
-            const preState=this.findStateByHash(prev.pre_hash);
-            if(preState && Kempe.checkDependency(preState,prevOp,operator)){
-              this.traceManager.addAttempt(operator,i);
-              UI.render(this.state);
-              UI.showReportPanel(i,operator.args);
-              return;
+    }
+
+    function createRenderer(layerId){
+      return (σ,ui)=>{
+        svg.selectAll('*').remove();
+        const G=σ.G, c=σ.c, vStar=σ.vStar, kp=σ.kempePair;
+
+        // 边
+        svg.append('g').selectAll('line').data(G.edges).join('line')
+          .attr('x1',d=>G.getNode(d[0]).x).attr('y1',d=>G.getNode(d[0]).y)
+          .attr('x2',d=>G.getNode(d[1]).x).attr('y2',d=>G.getNode(d[1]).y)
+          .attr('stroke','#9ca3af').attr('stroke-width',3);
+
+        // 节点
+        const ng=svg.append('g').selectAll('g').data(G.nodes,d=>d.id).join(
+          enter=>{
+            const g=enter.append('g').attr('class','node-group').style('opacity',0);
+            g.append('circle').attr('r',24).attr('stroke','#374151').attr('stroke-width',2);
+            g.append('text').attr('text-anchor','middle').attr('dy','.35em').attr('fill','#1f2937').text(d=>d.id);
+            g.transition().duration(ui.instant?0:200).style('opacity',1);
+            return g;
+          }
+        );
+        ng.attr('transform',d=>`translate(${d.x},${d.y})`).style('cursor','pointer')
+          .on('click',(e,d)=>{
+            if(layerId==='L3_KEMPE'&&kp){
+              const chain=window.getKempeChain(G,c,d.id,kp[0],kp[1]);
+              ENGINE.dispatch({type:ACTIONS.FLIP_KEMPE,payload:{chain}});
+            }else{
+              ENGINE.dispatch({type:ACTIONS.COLOR_VERTEX,payload:{v:d.id,k:ui.currentColor}});
+            }
+          });
+
+        // Kempe链高亮
+        if(layerId==='L3_KEMPE'){
+          ng.on('mouseover',(e,d)=>{
+            if(!σ.kempePair) return;
+            const [a,b]=σ.kempePair, chain=new Set(window.getKempeChain(G,c,d.id,a,b));
+            ng.select('circle').classed('kempe-chain-highlight',n=>chain.has(n.id));
+          }).on('mouseout',()=>ng.select('circle').classed('kempe-chain-highlight',false));
+        }
+
+        // 填充 & 边框
+        ng.select('circle')
+          .attr('stroke',d=>d.id===vStar?'#0ea5e9':'#374151')
+          .attr('stroke-width',d=>d.id===vStar?4:2)
+          .attr('stroke-dasharray',d=>d.id===vStar?'6 3':null)
+          .transition().duration(ui.instant?0:200)
+          .attr('fill',d=>getFill(c[d.id],ui));
+
+        drawActions(layerId,σ,ui);
+      };
+    }
+
+    RENDERERS.L1_COLORING = createRenderer('L1_COLORING');
+    RENDERERS.L2_INDUCTION = createRenderer('L2_INDUCTION');
+    RENDERERS.L3_KEMPE     = createRenderer('L3_KEMPE');
+    RENDERERS.L4_REDUCTION = createRenderer('L4_REDUCTION');
+    RENDERERS.Z_WIN        = (σ,ui)=>{
+      svg.selectAll('*').remove();
+      const t=svg.append('text').attr('x','50%').attr('y','50%')
+        .attr('text-anchor','middle').attr('dominant-baseline','middle');
+      t.append('tspan').attr('x','50%').attr('dy','-0.5em').attr('font-size','48px').attr('fill','#10b981').text('🎉');
+      t.append('tspan').attr('x','50%').attr('dy','1.2em').attr('font-size','24px').attr('font-weight','bold').text('证明完成');
+      t.append('tspan').attr('x','50%').attr('dy','1.5em').attr('font-size','16px').attr('fill','#6b7280').text('您已掌握四色定理核心思想。');
+      drawActions('Z_WIN',σ,ui);
+    };
+
+    const tutorials = {
+      L1_COLORING:'L1：基础着色——为所有顶点着色，相邻不同色。',
+      L2_INDUCTION:'L2：归纳法——新顶点唯一可选颜色4，请选色后点击它。',
+      L3_KEMPE:'L3：Kempe链——选一对颜色，点击链上顶点翻转。',
+      L4_REDUCTION:'L4：最后挑战——复杂图中完成四色证明。',
+      Z_WIN:'恭喜！您完成了交互式四色定理证明。'
+    };
+    function updateTutorial(layer){
+      document.getElementById('tutorial-box').textContent = tutorials[layer]||'';
+    }
+
+    const actionsBox = document.getElementById('actions-box');
+    function drawActions(layer,σ,ui){
+      actionsBox.innerHTML='';
+      const makePalette=()=>{
+        const cDiv=document.createElement('div'); cDiv.className='grid grid-cols-2 gap-2';
+        COLORS.forEach(col=>{
+          const btn=document.createElement('button');
+          btn.className='w-full py-2 rounded-md text-white font-semibold';
+          btn.style.backgroundColor=col.fill;
+          btn.textContent=`颜色 ${col.id}`;
+          btn.onclick=()=>ENGINE.dispatch({type:ACTIONS._SET_UI_STATE,payload:{currentColor:col.id}});
+          if(ui.currentColor===col.id) btn.classList.add('ring-2','ring-blue-500');
+          cDiv.appendChild(btn);
+        });
+        actionsBox.appendChild(cDiv);
+      };
+
+      switch(layer){
+        case 'L1_COLORING':
+        case 'L2_INDUCTION':
+        case 'L4_REDUCTION':
+          makePalette(); break;
+
+        case 'L3_KEMPE':
+          makePalette();
+          const grid=document.createElement('div');
+          grid.className='grid grid-cols-3 gap-2 mt-4';
+          const pairs=[];
+          for(let i=0;i<COLORS.length;i++){
+            for(let j=i+1;j<COLORS.length;j++){
+              pairs.push([COLORS[i],COLORS[j]]);
             }
           }
-          newS = operator.execute(oldS);
+          pairs.forEach(([c1,c2])=>{
+            const b=document.createElement('button');
+            b.className='w-full h-8 border-2 rounded-md flex items-center justify-center gap-1';
+            b.innerHTML=`<div class="w-4 h-4 rounded-full" style="background:${c1.fill}"></div>
+                         <div class="w-4 h-4 rounded-full" style="background:${c2.fill}"></div>`;
+            b.onclick=()=>ENGINE.dispatch({type:ACTIONS.SELECT_KEMPE_PAIR,payload:{pair:[c1.id,c2.id]}});
+            if(σ.kempePair && σ.kempePair[0]===c1.id && σ.kempePair[1]===c2.id){
+              b.classList.add('border-blue-500','ring-2','ring-blue-500');
+            } else {
+              b.classList.add('border-gray-300');
+            }
+            grid.appendChild(b);
+          });
+          actionsBox.appendChild(grid);
           break;
-        default: return;
-      }
-      this.state=newS;
-      this.traceManager.addStep(operator,oldS,this.state);
-      UI.render(this.state);
-      GoalChecker.check(this.currentLevelId,this.state,this.traceManager.trace);
-      this.selectVertex(null);
-    },
-    findStateByHash(hash){
-      let s=LevelManager.getInitialState(this.currentLevelId);
-      if(s.hash===hash) return s;
-      for(const step of this.traceManager.trace){
-        if(step.pre_hash===hash) return s.clone();
-        const C={Assign:AssignOp,Cut:CutOp,Return:ReturnOp,Invert:InvertOp}[step.op];
-        if(C&&step.legal){ s=new C(...Object.values(step.args)).execute(s); }
-        if(s.hash===hash) return s;
-      }
-      return null;
-    }
-  };
 
-  window.onload = ()=>Game.init();
+        case 'Z_WIN':
+          const btn=document.createElement('button');
+          btn.className='w-full bg-green-600 text-white py-2 rounded-md font-bold';
+          btn.textContent='重新开始';
+          btn.onclick=()=>{ clearState(); location.reload(); };
+          actionsBox.appendChild(btn);
+          break;
+      }
+    }
+
+    function updateUndoRedo(){
+      document.getElementById('undoBtn').disabled = ENGINE.history.length===0;
+      document.getElementById('redoBtn').disabled = ENGINE.redoStack.length===0;
+    }
+
+    document.getElementById('instantToggle').onchange = e=>{
+      ENGINE.dispatch({type:ACTIONS._SET_UI_STATE,payload:{instant:e.target.checked}});
+    };
+    document.getElementById('patternToggle').onchange = e=>{
+      ENGINE.dispatch({type:ACTIONS._SET_UI_STATE,payload:{usePattern:e.target.checked}});
+    };
+    document.getElementById('undoBtn').onclick = ()=>ENGINE.undo();
+    document.getElementById('redoBtn').onclick = ()=>ENGINE.redo();
+    window.addEventListener('keydown',e=>{
+      if((e.ctrlKey||e.metaKey)&&e.key==='z'){ e.preventDefault(); ENGINE.undo(); }
+      if((e.ctrlKey||e.metaKey)&&e.key==='y'){ e.preventDefault(); ENGINE.redo(); }
+    });
+
+    const ENGINE = new window.GameEngine();
+    ENGINE.subscribe(render);
+    render(ENGINE.state);
+
+  })();
   </script>
 </body>
 </html>
