@@ -330,7 +330,7 @@
         g.addEdge('P','X'); g.addEdge('Q','X');
         const s=new State(g);
         ring.forEach(([id,,,c])=>s.Phi.set(id,c));
-        s.Phi.set('P', 2); // P is Red (2)
+        s.Phi.set('P', 1); // P is Blue (1)
         s.Phi.set('Q', 0); // Q is Gold (0)
         return s;
     };
