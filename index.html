@@ -597,7 +597,7 @@
             const shortHash = r.post_hash ? r.post_hash.substring(0, 8) : '--------';
             const opName = opMap[r.op] || r.op;
             const logClass = r.op.startsWith('Attempt') ? 'warn' : '';
-            log(`[${r.idx}] 操作: ${opName} ${argsStr} ↦ 哈希: ${shortHash}...`, logClass);
+            log(`[${r.idx}] 操作: ${opName} ${argsStr} ↦ Hash: ${shortHash}...`, logClass);
         }
     }
     
