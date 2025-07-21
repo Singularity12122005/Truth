@@ -18,6 +18,7 @@
       --color-success: #b9f6ca;
       --color-error: #ff8a80;
       --color-warn: #ffd54f;
+      --color-highlight: #FF00FF;
     }
     body { 
       margin: 0; 
@@ -107,6 +108,8 @@
 
     @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
     @keyframes slideIn { from { transform: translateY(-50px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+    @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(255, 0, 255, 0.7); } 70% { box-shadow: 0 0 0 10px rgba(255, 0, 255, 0); } 100% { box-shadow: 0 0 0 0 rgba(255, 0, 255, 0); } }
+
   </style>
 </head>
 <body>
@@ -132,7 +135,7 @@
 
   <div id="invertModal" class="modal">
     <div class="modal-content">
-      <h4>对顶点 <span id="invertVertexId" style="font-weight:bold;"></span> 执行凯普链翻转</h4>
+      <h4>对顶点 <span id="invertVertexId" style="font-weight:bold;"></span> 执行Kempe链翻转</h4>
       <p>请选择两种颜色 (a 与 b)，沿此链进行交换。</p>
       <div id="invertColorSelector"></div>
       <p>已选: <strong id="invertSelection">无</strong></p>
@@ -143,15 +146,16 @@
 
   <script type="module">
     // =================================================================================
-    // 欢迎来到四色定理交互式证明！
-    // 本脚本整合了所有模块化的JavaScript文件，形成一个独立的、可直接运行的应用。
-    // 这样做是为了避免浏览器模块加载的跨域和路径问题，同时完整保留了原始设计的
-    // 模块化逻辑和工程严谨性。
+    // 欢迎来到四色定理的证明！
     // =================================================================================
 
     // --- engine/graph.js ---
     class Vertex {
-      constructor(id, x, y) { this.id = String(id); this.x = x; this.y = y; }
+      constructor(id, x, y) { 
+        this.id = String(id); 
+        this.ox = x; this.oy = y; // 永久原始坐标
+        this.x = x; this.y = y;   // 画布坐标
+      }
     }
     class Edge {
       constructor(u, v) { this.u = String(u); this.v = String(v); }
@@ -160,20 +164,56 @@
     class Graph {
       constructor() { this.V = new Map(); this.E = []; this.Pi = new Map(); }
       addVertex(id, x, y) { id = String(id); if (this.V.has(id)) throw new Error(`顶点 ${id} 已存在。`); this.V.set(id, new Vertex(id, x, y)); this.Pi.set(id, []); }
-      addEdge(u, v) { u = String(u); v = String(v); if (!this.V.has(u) || !this.V.has(v)) throw new Error(`addEdge: 未知顶点 ${u} 或 ${v}`); const e = new Edge(u, v); if (this.E.some(ex => ex.equals(e))) return; this.E.push(e); this.Pi.get(u).push(v); this.Pi.get(v).push(u); }
+      addEdge(u, v) { 
+        u = String(u); v = String(v); 
+        if (!this.V.has(u) || !this.V.has(v)) throw new Error(`addEdge: 未知顶点 ${u} 或 ${v}`); 
+        const e = new Edge(u, v); 
+        if (this.E.some(ex => ex.equals(e))) return; 
+        this.E.push(e); 
+        this.Pi.get(u).push(v); 
+        this.Pi.get(v).push(u);
+      }
       neighbors(id) { return this.Pi.get(String(id)) || []; }
       degree(id) { return this.neighbors(id)?.length ?? 0; }
       get edges() { return this.E.map(e => [e.u, e.v]); }
-      clone() { const g2 = new Graph(); for (const [id, v] of this.V.entries()) { g2.V.set(id, new Vertex(id, v.x, v.y)); g2.Pi.set(id, []); } for (const e of this.E) { g2.E.push(new Edge(e.u, e.v)); g2.Pi.get(e.u).push(e.v); g2.Pi.get(e.v).push(e.u); } return g2; }
+      clone() { 
+        const g2 = new Graph(); 
+        for (const [id, v] of this.V.entries()) { 
+          g2.V.set(id, new Vertex(id, v.ox, v.oy)); 
+          g2.V.get(id).x = v.x; g2.V.get(id).y = v.y; 
+          g2.Pi.set(id, []);
+        } 
+        for (const e of this.E) { 
+          g2.E.push(new Edge(e.u, e.v));
+          g2.Pi.get(e.u).push(e.v);
+          g2.Pi.get(e.v).push(e.u);
+        }
+        return g2; 
+      }
     }
 
     // --- engine/state.js ---
     class StackFrame {
-      constructor(v, adjList, posMap, prevColor) { this.v = v; this.adj = adjList.slice(); this.pos = new Map(posMap); this.prevColor = prevColor; }
+      constructor(v, adjList, prevColor) { 
+        this.v = v; 
+        this.adj = adjList.slice(); 
+        this.prevColor = prevColor; 
+      }
     }
     class State {
       constructor(graph) { this.G = graph; this.Phi = new Map(); this.K = []; this.hash = null; this.chi = new Map(); for (const id of graph.V.keys()) { this.Phi.set(id, null); } }
-      clone() { const g2 = this.G.clone(); const s2 = new State(g2); s2.Phi = new Map(this.Phi); s2.K = this.K.map(f => new StackFrame(f.v, f.adj.slice(), new Map(f.pos), f.prevColor)); s2.hash = this.hash; s2.chi = new Map(this.chi); return s2; }
+      clone() { 
+        const g2 = this.G.clone(); 
+        const s2 = new State(g2); 
+        s2.Phi = new Map(this.Phi); 
+        s2.K = this.K.map(f => new StackFrame(f.v, f.adj.slice(), f.prevColor)); 
+        s2.hash = this.hash; 
+        s2.chi = new Map(this.chi); 
+        if ('initialChargeSum' in this) {
+            s2.initialChargeSum = this.initialChargeSum;
+        }
+        return s2; 
+      }
       isProper() { for (const [u,v] of this.G.edges) { const cu = this.Phi.get(u), cv = this.Phi.get(v); if (cu !== null && cu === cv) return false; } return true; }
       isWin() { if (!this.isProper()) return false; for (const c of this.Phi.values()) { if (c === null) return false; } return true; }
     }
@@ -192,15 +232,18 @@
       const s2 = state.clone();
       if (!s2.G.V.has(v)) return [null, `顶点 ${v} 不存在。`];
       const neighbors = s2.G.neighbors(v);
-      const posMap = new Map();
-      for (const u of neighbors) { const arr = s2.G.Pi.get(u); const idx = arr.indexOf(v); posMap.set(u, idx); arr.splice(idx, 1); }
+      for (const u of neighbors) { 
+        const arr = s2.G.Pi.get(u); 
+        const idx = arr.indexOf(v); 
+        if (idx !== -1) arr.splice(idx, 1); 
+      }
       s2.G.V.delete(v);
       s2.G.E = s2.G.E.filter(e => e.u !== v && e.v !== v);
       s2.G.Pi.delete(v);
       const prevColor = s2.Phi.get(v);
       s2.Phi.delete(v);
       s2.chi.delete(v);
-      const frame = new StackFrame(v, neighbors, posMap, prevColor);
+      const frame = new StackFrame(v, neighbors, prevColor);
       s2.K.push(frame);
       return [s2, null];
     }
@@ -211,14 +254,26 @@
       const v = frame.v;
       let avgX = 0, avgY = 0, validNeighbors = 0;
       if (frame.adj.length > 0) {
-          for(const neighborId of frame.adj) { const neighborV = state.G.V.get(neighborId); if(neighborV) { avgX += neighborV.x; avgY += neighborV.y; validNeighbors++; } }
-          if (validNeighbors > 0) { avgX /= validNeighbors; avgY /= validNeighbors; } else { avgX = canvas.width / 2; avgY = canvas.height / 2; }
-      } else { avgX = canvas.width / 2; avgY = canvas.height / 2; }
+          for(const neighborId of frame.adj) { const neighborV = s2.G.V.get(neighborId); if(neighborV) { avgX += neighborV.ox; avgY += neighborV.oy; validNeighbors++; } }
+          const cw = (globalThis.canvas?.clientWidth) ?? 500;
+          const ch = (globalThis.canvas?.clientHeight) ?? 500;
+          if (validNeighbors > 0) { avgX /= validNeighbors; avgY /= validNeighbors; } else { avgX = cw / 2; avgY = ch / 2; }
+      } else { 
+          const cw = (globalThis.canvas?.clientWidth) ?? 500;
+          const ch = (globalThis.canvas?.clientHeight) ?? 500;
+          avgX = cw / 2; avgY = ch / 2;
+      }
       s2.G.addVertex(v, avgX, avgY);
-      for (const u of frame.adj) { if (s2.G.V.has(u)) { s2.G.addEdge(v, u); const arr = s2.G.Pi.get(u); arr.splice(frame.pos.get(u), 0, v); } }
-      const consistentAdj = frame.adj.filter(neighborId => s2.G.V.has(neighborId));
-      s2.G.Pi.set(v, consistentAdj);
-      s2.Phi.set(v, null);
+      for (const u of frame.adj) {
+        if (s2.G.V.has(u)) {
+          s2.G.addEdge(v, u);
+        }
+      }
+      s2.Phi.set(v, frame.prevColor);
+      if (!s2.isProper()) {
+        return [null, { type: 'RuleViolation', message: `顶点 ${v} 放回后与其邻居颜色冲突。` }];
+      }
+      layoutGraph(s2.G);
       return [s2, null];
     }
     function kempeChain(state, v, a, b) {
@@ -240,10 +295,11 @@
     }
     function discharge(state, u, v) {
         const s2 = state.clone();
-        if(!s2.G.E.some(e => e.equals(new Edge(u,v)))) return [null, `顶点 ${u} 和 ${v} 不是邻居。`];
+        if(!s2.G.E.some(e => e.equals(new Edge(u,v)))) return [null, { type: 'AttemptDischarge', message: `顶点 ${u} 和 ${v} 不是邻居。` }];
         const chargeU = s2.chi.get(u) || 0;
-        if(chargeU <= 0) return [null, `放电点 ${u} 的电荷必须为正。`];
         const chargeV = s2.chi.get(v) || 0;
+        if(chargeU <= 0) return [null, { type: 'AttemptDischarge', message: `放电点 ${u} 的电荷非正，无法放电。` }];
+        if(chargeV >= 0) return [null, { type: 'AttemptDischarge', message: `接收点 ${v} 不是负电荷点，无法接收电荷。` }];
         s2.chi.set(u, chargeU - 1);
         s2.chi.set(v, chargeV + 1);
         return [s2, null];
@@ -259,52 +315,359 @@
     // --- 关卡定义 ---
     registerLevel(new Level( 'L0: 热身 - 什么是合法着色？', '证明四色定理的第一步是理解“合法着色”。任何两个共享边界的国家（在图中即为由边相连的顶点）都不能拥有相同的颜色。请为这张最简单的地图（K3图）进行合法着色。点击一个国家，然后按键盘上的 1-4 来选择颜色。', () => { const g = new Graph(); g.addVertex('A',150,150); g.addVertex('B',300,150); g.addVertex('C',225,300); g.addEdge('A','B'); g.addEdge('B','C'); g.addEdge('C','A'); return new State(g); }, (state) => state.isWin() ));
     registerLevel(new Level( 'L1: 归纳法 - “切除”与“放回”', '数学归纳法是证明四色定理的核心。其思想是：如果我们能证明“若所有 n 个顶点的地图都可四色，则所有 n+1 个顶点的地图也可四色”，那么定理就成立。这里的“切除 (Cut)”操作，就是将一个 n+1 顶点的地图简化为 n 顶点的地图。请先“切除”一个顶点，为剩余地图着色，然后用“放回 (Return)”操作恢复它，并完成最终着色。', () => { const g = new Graph(); g.addVertex('X',250,200); const pts = [['A',150,100],['B',350,100],['C',400,300],['D',250,400],['E',100,300]]; pts.forEach(([id,x,y])=>g.addVertex(id,x,y)); const path = ['A','B','C','D','E','A']; for (let i = 0; i < path.length - 1; i++) { g.addEdge(path[i], path[i+1]); } pts.forEach(([id])=>g.addEdge('X',id)); return new State(g); }, (s, traces) => s.isWin() && traces.some(r=>r.op==='Cut') && traces.some(r=>r.op==='Return') ));
-    registerLevel(new Level( 'L2: 凯普链 (基础形态)', '欢迎来到第一个难题。请注意：本地图的四周国家已被预先着色，因此您无法对它们再次使用“着色”操作。在这种局面下，中心顶点 X 的邻国用尽了全部四种颜色，直接为其着色已不可能。此时，我们必须使用“翻转 (Invert)”操作。这是对“凯普链”最基础的应用：选择 X 的一个邻居（例如 A），再选择一种 X 的其他邻居已使用的颜色（例如 C 的红色），然后对 A 执行 (金/红) 翻转。这会形成一条只包含 A 自身的“凯普链”，并安全地将 A 的颜色变为红色，从而为 X 腾出原先的金色。请必须使用一次翻转操作来完成本关。', () => { const g = new Graph(); g.addVertex('X',250,200); const ring = [['A',150,100,0], ['B',350,100,1], ['C',350,300,2], ['D',150,300,3]]; ring.forEach(([id,x,y])=>g.addVertex(id,x,y)); ring.forEach((_,i)=>{ g.addEdge(ring[i][0], ring[(i+1)%4][0]); g.addEdge('X', ring[i][0]); }); const s = new State(g); ring.forEach(([id,, ,col])=> s.Phi.set(id, col)); return s; }, (s, traces) => s.isWin() && traces.some(r => r.op === 'Invert') ));
-    const buildL3L4Graph = () => { const g = new Graph(); g.addVertex('X', 250, 200); const ring = [['A', 150, 100, 0], ['B', 350, 100, 1], ['C', 400, 250, 2], ['D', 250, 350, 3], ['E', 100, 250, 0]]; ring.forEach(([id,x,y]) => g.addVertex(id, x, y)); for (let i = 0; i < ring.length - 1; i++) { g.addEdge(ring[i][0], ring[i + 1][0]); } ring.forEach(([id]) => g.addEdge('X', id)); const s = new State(g); ring.forEach(([id, , , col]) => s.Phi.set(id, col)); return s; };
-    registerLevel(new Level( 'L3: 五邻国情形 - 寻找正确的凯普链', '这是证明中的一个典型场景。中心点 X 有五个邻居，但邻居只用了四种颜色，因为顶点 A 和 E 颜色相同（金色）。这导致 X 仍然没有可用颜色。此时，关键在于选择正确的颜色对来构造凯普链。请观察，哪条凯普链可以断开 A 和 E 的颜色连接，从而为 X 腾出空间？提示：请对从 A 或 E 出发的 (金/红) 链进行翻转。', buildL3L4Graph, (state, traces) => { if (!state.isWin()) return false; const didInvert02 = traces.some(r => r.op === 'Invert' && (r.args.v === 'A' || r.args.v === 'E') && ((r.args.a === 0 && r.args.b === 2) || (r.args.a === 2 && r.args.b === 0))); if (!didInvert02) return false; return traces.some(r => r.op === 'Assign' && r.args.v === 'X' && r.args.c === 0); } ));
-    registerLevel(new Level( 'L4: 连锁翻转 - 复杂的局面', '真实的证明比单一凯普链更复杂。有时，一次翻转是为了给下一次翻转创造条件。在这个关卡中，你无法一次性为 X 腾出颜色。你需要先执行一次翻转，改变局面，然后再执行第二次翻转，最终才能解决问题。这体现了证明中处理复杂构型时所需的策略深度。请按顺序执行两次指定的翻转操作。', buildL3L4Graph, (state, traces) => { if (!state.isWin()) return false; const idx1 = traces.findIndex(r => r.op === 'Invert' && (r.args.v === 'A' || r.args.v === 'E') && ((r.args.a === 0 && r.args.b === 2) || (r.args.a === 2 && r.args.b === 0))); if (idx1 < 0) return false; const idx2 = traces.findIndex(r => r.op === 'Invert' && r.args.v === 'C' && ((r.args.a === 2 && r.args.b === 3) || (r.args.a === 3 && r.args.b === 2))); if (idx2 < 0 || idx2 <= idx1) return false; return traces.findIndex(r => r.op === 'Assign' && r.args.v === 'X' && r.args.c === 0) > idx2; } ));
-    registerLevel(new Level( 'L5: Kempe 的反例', '这是 Kempe 最初证明中的漏洞。此图（Fritsch 反例）本身可四色，但对顶点 6 执行一次特定的凯普链翻转 (金/红)，会意外地导致顶点 1 和 3 颜色冲突。您的任务是：触发这次失败的翻转，亲眼见证 Kempe 论证的百年““bug”。', () => { const g = new Graph(); const V = ['1','2','3','4','5','6']; const P = [[250,50],[150,150],[250,250],[350,250],[350,150],[280,170]]; V.forEach((v,i)=>g.addVertex(v,P[i][0],P[i][1])); const E = [['1','2'],['2','3'],['3','4'],['4','5'],['5','1'],['6','1'],['6','3'],['6','5']]; E.forEach(e=>g.addEdge(e[0],e[1])); const s = new State(g); const PHI = {'1':0,'2':1,'3':2,'4':0,'5':1,'6':3}; for(const id in PHI) s.Phi.set(id, PHI[id]); return s; }, (s, traces) => traces.some(r => r.op === 'AttemptInvert' && r.args.v === '6' && ((r.args.a === 0 && r.args.b === 2)||(r.args.a === 2 && r.args.b === 0))) ));
-    registerLevel(new Level( 'L6: Birkhoff 菱形', 'Birkhoff 菱形是一个典型的“可约构型”。这意味着，任何包含它的地图，其四色性都等价于将这个菱形替换为一个更简单结构后的地图的四色性。请您通过“切除”中心点 x，为剩下的部分着色，再“放回”x 并完成着色，来亲手证明它的可约性。', () => { const g = new Graph(); g.addVertex('x',250,200); g.addVertex('a',150,100); g.addVertex('b',350,100); g.addVertex('c',250,300); g.addVertex('d',150,300); const E = [['x','a'],['x','b'],['a','c'],['b','c'],['c','d'],['d','a']]; E.forEach(e=>g.addEdge(e[0],e[1])); return new State(g); }, (s, traces) => s.isWin() && traces.some(r => r.op === 'Cut' && r.args.v === 'x') && traces.some(r => r.op === 'Return') ));
-    registerLevel(new Level( 'L7: 放电法模拟', '放电法是最终证明的核心。我们将每个顶点视为带电荷的粒子，初始电荷 χ(v) = 5 - deg(v)。目标是通过在邻点间转移电荷（正电荷点可以给邻居“放电”），最终使所有顶点的电荷都 ≥ 0。欧拉公式保证总电荷守恒。请点击“放电”按钮，然后依次点击放电点和接收点来转移电荷。', () => { const g = new Graph(); const n=8; for(let i=0;i<n;i++){ const angle=2*Math.PI*i/n; g.addVertex(String(i), 250+150*Math.cos(angle), 200+150*Math.sin(angle)); } for(let i=0;i<n;i++){ g.addEdge(String(i), String((i+1)%n)); } g.addVertex('c', 250, 200); for(let i=0;i<n;i++) g.addEdge('c', String(i)); const s = new State(g); for (const v of g.V.keys()){ s.chi.set(v, 5 - g.degree(v)); } return s; }, (s) => { if(s.chi.size === 0) return false; for (const v of s.chi.values()){ if(v < 0) return false; } return true; } ));
-    registerLevel(new Level( 'L8: 不可避免集 (概念)', '最终的计算机证明，本质上是找到一个“不可避免集”——一个包含约1500种可约构型的集合，并证明任何地图都必然包含其中至少一个。本关是这一宏伟思想的简化体验。图中包含一个Birkhoff菱形。请依次点击构成该菱形的5个顶点，系统识别后，您需要依次将它们Cut掉，完成归约。', () => { const g = new Graph(); g.addVertex('x',150,120); g.addVertex('a',50,50); g.addVertex('b',250,50); g.addVertex('c',150,220); g.addVertex('d',50,220); const E1 = [['x','a'],['x','b'],['a','c'],['b','c'],['c','d'],['d','a']]; E1.forEach(e=>g.addEdge(e[0],e[1])); g.addVertex('e',350,150); g.addVertex('f',250,250); g.addEdge('b','e'); g.addEdge('c','f'); g.addEdge('e','f'); return new State(g); }, (s) => s.G.V.size === 0 ));
+    registerLevel(new Level( 'L2: Kempe链 (基础形态)', '欢迎来到第一个难题。Kempe链是指图中一条由两种颜色交替构成的路径。利用它，我们可以交换这条链上所有顶点的颜色，为其他顶点创造着色机会。请注意：本地图的四周国家已被预先着色，您无法对它们再次使用“着色”操作。在这种局面下，中心顶点 X 的邻国用尽了全部四种颜色，直接为其着色已不可能。此时，我们必须使用“翻转 (Invert)”操作。请选择 X 的一个邻居（例如 A），再选择一种 X 的其他邻居已使用的颜色（例如 C 的红色），然后对 A 执行 (金/红) 翻转。这会形成一条只包含 A 自身的“Kempe链”，并安全地将 A 的颜色变为红色，从而为 X 腾出原先的金色。请必须使用一次翻转操作来完成本关。', () => { const g = new Graph(); g.addVertex('X',250,200); const ring = [['A',150,100,0], ['B',350,100,1], ['C',350,300,2], ['D',150,300,3]]; ring.forEach(([id,x,y])=>g.addVertex(id,x,y)); ring.forEach((_,i)=>{ g.addEdge(ring[i][0], ring[(i+1)%4][0]); g.addEdge('X', ring[i][0]); }); const s = new State(g); ring.forEach(([id,, ,col])=> s.Phi.set(id, col)); return s; }, (s, traces) => s.isWin() && traces.some(r => r.op === 'Invert') ));
+    const buildL3Graph = () => { const g = new Graph(); g.addVertex('X', 250, 200); const ring = [['A', 150, 100, 0], ['B', 350, 100, 1], ['C', 400, 250, 2], ['D', 250, 350, 3], ['E', 100, 250, 0]]; ring.forEach(([id,x,y]) => g.addVertex(id, x, y)); for (let i = 0; i < ring.length - 1; i++) { g.addEdge(ring[i][0], ring[i + 1][0]); } ring.forEach(([id]) => g.addEdge('X', id)); const s = new State(g); ring.forEach(([id, , , col]) => s.Phi.set(id, col)); return s; };
+    registerLevel(new Level( 'L3: 五邻国情形 - 寻找正确的Kempe链', '这是证明中的一个典型场景。中心点 X 有五个邻居，但邻居只用了四种颜色，因为顶点 A 和 E 颜色相同（金色）。这导致 X 仍然没有可用颜色。此时，关键在于选择正确的颜色对来构造Kempe链。请观察，哪条Kempe链可以断开 A 和 E 的颜色连接，从而为 X 腾出空间？提示：请对从 A 或 E 出发的 (金/红) 链进行翻转。', buildL3Graph, (state, traces) => { if (!state.isWin()) return false; const didInvert02 = traces.some(r => r.op === 'Invert' && (r.args.v === 'A' || r.args.v === 'E') && ((r.args.a === 0 && r.args.b === 2) || (r.args.a === 2 && r.args.b === 0))); if (!didInvert02) return false; return traces.some(r => r.op === 'Assign' && r.args.v === 'X' && r.args.c === 0); } ));
+    const buildL4Graph = () => {
+        const g = new Graph();
+        g.addVertex('X',250,200);
+        const ring=[['A',150,80,0],['B',350,80,1],['C',420,230,2],['D',250,380,3],['E',80,230,0]];
+        ring.forEach(([id,x,y])=>g.addVertex(id,x,y));
+        for (let i = 0; i < ring.length - 1; i++) { g.addEdge(ring[i][0], ring[i+1][0]); }
+        ring.forEach(([id])=>g.addEdge('X',id));
+        g.addVertex('P',340,230); g.addVertex('Q',160,230);
+        g.addEdge('P','B'); g.addEdge('P','C'); g.addEdge('Q','D'); g.addEdge('Q','E');
+        g.addEdge('P','X'); g.addEdge('Q','X');
+        const s=new State(g);
+        ring.forEach(([id,,,c])=>s.Phi.set(id,c));
+        s.Phi.set('P', 2); // P is Red (2)
+        s.Phi.set('Q', 0); // Q is Gold (0)
+        return s;
+    };
+    registerLevel(new Level( 'L4: 交叉Kempe链 — 操作不可交换', '一个更复杂的局面。您需要为 X 着色，但直接翻转 (A/E, 金↔红) 会因为 P 的存在而失败。您必须先处理 P/Q 的 (红/金) 链，再处理 A/E 链。这揭示了证明中一个深刻的性质：操作的顺序至关重要。请按正确的顺序完成两次翻转。', buildL4Graph, (S,T)=>{ if(!S.isWin()) return false; const i1=T.findIndex(t=>t.op==='Invert'&&(t.args.v==='P'||t.args.v==='Q')); const i2=T.findIndex(t=>t.op==='Invert'&&(t.args.v==='A'||t.args.v==='E')); return i1>=0 && i2>i1; } ));
+    registerLevel(new Level( 'L5: Kempe的反例', '这是 Kempe最初证明中的漏洞。此图（Fritsch 反例）本身可四色，但对顶点 6 执行一次特定的Kempe链翻转 (金/红)，会意外地导致顶点 1 和 3 颜色冲突。您的任务是：1. 触发这次失败的翻转，亲眼见证 Kempe论证的百年“bug”。2. 在触发失败后，通过其他操作（如撤销或翻转其他链）最终完成地图的合法四色，亲手“修补”这个漏洞。', () => { const g = new Graph(); const V = ['1','2','3','4','5','6']; const P = [[250,50],[150,150],[250,250],[350,250],[350,150],[280,170]]; V.forEach((v,i)=>g.addVertex(v,P[i][0],P[i][1])); const E = [['1','2'],['2','3'],['3','4'],['4','5'],['5','1'],['6','1'],['6','3'],['6','5']]; E.forEach(e=>g.addEdge(e[0],e[1])); const s = new State(g); const PHI = {'1':0,'2':1,'3':2,'4':0,'5':1,'6':3}; for(const id in PHI) s.Phi.set(id, PHI[id]); return s; }, (s, traces) => { const tried = traces.some(t=>t.op==='AttemptInvert'&&t.args.v==='6' && new Set([t.args.a, t.args.b]).has(0) && new Set([t.args.a, t.args.b]).has(2)); return tried ? s.isWin() : false; } ));
+    registerLevel(new Level( 'L6: Birkhoff 菱形', 'Birkhoff 菱形是一个典型的“可约构型”。任何包含它的地图，其四色性都等价于将这个菱形替换为一个更简单结构后的地图的四色性。请您必须先“切除”中心点 x，为剩下的部分着色，再“放回”x 并为它选择一个与四邻都不同的颜色，来亲手证明它的可约性。如果放回后颜色冲突，请先用Kempe链调整邻域再给 x 着色。', () => { const g = new Graph(); g.addVertex('x',250,200); g.addVertex('a',150,100); g.addVertex('b',350,100); g.addVertex('c',250,300); g.addVertex('d',200,300); const E = [['x','a'],['x','b'],['a','c'],['b','c'],['c','d'],['d','a']]; E.forEach(e=>g.addEdge(e[0],e[1])); return new State(g); }, 
+    (s, traces) => {
+        const idxCut = traces.findIndex(t => t.op === 'Cut' && t.args.v === 'x');
+        if (idxCut === -1) return false;
+        const hasReturnAfterCut = traces.slice(idxCut + 1).some(t => t.op === 'Return');
+        if (!hasReturnAfterCut || !s.G.V.has('x')) return false;
+        if (!s.isWin()) return false;
+        const neighbors = ['a', 'b', 'c', 'd'];
+        const neighborColors = new Set(neighbors.map(n => s.Phi.get(n)));
+        if (neighborColors.has(s.Phi.get('x'))) return false;
+        return true;
+    }));
+    registerLevel(new Level( 'L7: 放电法模拟', '放电法是最终证明的核心。我们将每个顶点视为带电荷的粒子，初始电荷 χ(v) = 5 - deg(v)。根据欧拉公式，所有顶点的总电荷是一个固定负值。您的目标是：通过在邻点间转移电荷（仅允许正电荷点给负电荷点“放电”），最终消除所有负电荷（即所有顶点电荷都 ≥ 0），以此证明图中必然存在低度数顶点。请点击“放电”按钮，然后依次点击放电点和接收点来转移电荷。', () => { const g = new Graph(); const n=8; for(let i=0;i<n;i++){ const angle=2*Math.PI*i/n; g.addVertex(String(i), 250+150*Math.cos(angle), 200+150*Math.sin(angle)); } for(let i=0;i<n;i++){ g.addEdge(String(i), String((i+1)%n)); } g.addVertex('c', 250, 200); for(let i=0;i<n;i++) g.addEdge('c', String(i)); const s = new State(g); let initialSum = 0; for (const v of g.V.keys()){ const charge = 5 - g.degree(v); s.chi.set(v, charge); initialSum += charge; } s.initialChargeSum = initialSum; return s; }, 
+    (s, traces) => {
+        if(!s.chi || s.chi.size === 0) return false;
+        const vals=[...s.chi.values()];
+        const allNonNegative = vals.every(v => v >= 0);
+        const sumIsConserved = Math.abs(vals.reduce((a,b)=>a+b,0) - s.initialChargeSum) < 1e-9;
+        const didMove = traces.some(t=>t.op==='Discharge');
+        return allNonNegative && sumIsConserved && didMove;
+    }));
+    registerLevel(new Level( 'L8: 不可避免集 (概念)', '最终的计算机证明，本质上是找到一个“不可避免集”——一个包含约1500种可约构型的集合。任何平面图都必然包含其中至少一个，否则将与欧拉公式矛盾。本关是这一思想的简化体验。图中高亮了一个Birkhoff菱形，您必须先处理它。请依次点击构成该菱形的5个顶点将它们“切除”，为剩余部分着色，然后完成最终的归约。', () => { const g = new Graph(); g.addVertex('x',150,120); g.addVertex('a',50,50); g.addVertex('b',250,50); g.addVertex('c',150,220); g.addVertex('d',50,220); const E1 = [['x','a'],['x','b'],['a','c'],['b','c'],['c','d'],['d','a']]; E1.forEach(e=>g.addEdge(e[0],e[1])); g.addVertex('e',350,150); g.addVertex('f',250,250); g.addEdge('b','e'); g.addEdge('c','f'); g.addEdge('e','f'); return new State(g); }, 
+    (s, traces) => {
+        const requiredCuts = new Set(['x', 'a', 'b', 'c', 'd']);
+        const actualCuts = new Set(traces.filter(t => t.op === 'Cut').map(t => t.args.v));
+        const allRequiredVerticesCut = [...requiredCuts].every(v => actualCuts.has(v));
+        if (!allRequiredVerticesCut) return false;
+        return s.G.V.size === 2 && s.isWin();
+    }));
+
+    /* ----------  L9 终极总检 ---------- */
+    // NOTE: Geometric intersections in the layout do not affect the graph's topological properties.
+    // The four-color theorem applies to the abstract connections (topology), not the drawing (geometry).
+    function buildRandomTriangulation(numVertices = 35, seed = 42) {
+      const cacheKey = `graph-layout-${numVertices}-${seed}`;
+      try {
+        const cached = sessionStorage.getItem(cacheKey);
+        if (cached) {
+          const g = new Graph();
+          const data = JSON.parse(cached);
+          for (const v_data of data.vertices) {
+            g.addVertex(v_data.id, v_data.ox, v_data.oy);
+          }
+          for (const e_data of data.edges) {
+            g.addEdge(e_data.u, e_data.v);
+          }
+          return g;
+        }
+      } catch (e) {
+        console.warn("Could not load cached graph:", e);
+      }
+
+      const g = new Graph();
+      const rnd = (() => { let s = seed; return () => (s = Math.imul(1664525, s + 1013904223) >>> 0) / 2**32; })();
+      
+      const tempVertices = [];
+      for (let i = 0; i < numVertices; i++) {
+        tempVertices.push({ id: String(i), x: rnd() * 700, y: rnd() * 500 });
+      }
+
+      const centroid = tempVertices.reduce((acc, v) => ({x: acc.x + v.x, y: acc.y + v.y}), {x:0, y:0});
+      centroid.x /= numVertices;
+      centroid.y /= numVertices;
+
+      tempVertices.sort((a, b) => {
+        const angleA = Math.atan2(a.y - centroid.y, a.x - centroid.x);
+        const angleB = Math.atan2(b.y - centroid.y, b.x - centroid.x);
+        return angleA - angleB;
+      });
+
+      tempVertices.forEach(v => g.addVertex(v.id, v.x, v.y));
+
+      const order = tempVertices.map(v => v.id);
+      for (let i = 0; i < numVertices; i++) {
+        g.addEdge(order[i], order[(i + 1) % numVertices]);
+      }
+      for (let i = 0; i < numVertices - 2; i++) {
+          g.addEdge(order[0], order[i + 2]);
+      }
+
+      const width = 700, height = 500, iterations = 250;
+      const area = width * height;
+      const k = Math.sqrt(area / numVertices);
+      let temperature = width / 10;
+
+      const vertices = Array.from(g.V.values());
+      for (let i = 0; i < iterations; i++) {
+        for (const u of vertices) {
+          u.disp = { x: 0, y: 0 };
+          for (const v of vertices) {
+            if (u === v) continue;
+            const delta = { x: u.ox - v.ox, y: u.oy - v.oy };
+            const dist = Math.sqrt(delta.x**2 + delta.y**2) || 1.0;
+            const repulsion = (k * k) / dist;
+            u.disp.x += (delta.x / dist) * repulsion;
+            u.disp.y += (delta.y / dist) * repulsion;
+          }
+        }
+
+        for (const edge of g.E) {
+          const u = g.V.get(edge.u);
+          const v = g.V.get(edge.v);
+          const delta = { x: u.ox - v.ox, y: u.oy - v.oy };
+          const dist = Math.sqrt(delta.x**2 + delta.y**2) || 1.0;
+          const attraction = (dist * dist) / k;
+          u.disp.x -= (delta.x / dist) * attraction;
+          u.disp.y -= (delta.y / dist) * attraction;
+          v.disp.x += (delta.x / dist) * attraction;
+          v.disp.y += (delta.y / dist) * attraction;
+        }
+
+        for (const u of vertices) {
+          const dispMag = Math.sqrt(u.disp.x**2 + u.disp.y**2) || 1.0;
+          const limitedDisp = Math.min(dispMag, temperature);
+          u.ox += (u.disp.x / dispMag) * limitedDisp;
+          u.oy += (u.disp.y / dispMag) * limitedDisp;
+        }
+        temperature *= (1 - (i / iterations));
+      }
+      
+      try {
+        const cacheData = {
+          vertices: Array.from(g.V.values()).map(v => ({id: v.id, ox: v.ox, oy: v.oy})),
+          edges: g.E.map(e => ({u: e.u, v: e.v}))
+        };
+        sessionStorage.setItem(cacheKey, JSON.stringify(cacheData));
+      } catch (e) {
+        console.warn("Could not cache graph:", e);
+      }
+      return g;
+    }
+
+    registerLevel(new Level(
+      'L9: 终极总检 — 35顶点三角化',
+      `这是最后的大考。你手里已有：
+      • 归纳 (Cut/Return)  
+      • Kempe链翻转 (Invert)  
+      • 放电法 (Discharge)  
+      请自由组合，最终把整幅 35 顶点三角化图合法四色，并通过放电消除所有负电荷。提示：先 Cut 几个度 ≤ 5 (尤其是 3 或 4) 的顶点染色可降低复杂度；必要时用放电移动正电荷后再 Return。`,
+      () => {
+        const g = buildRandomTriangulation();
+        const s = new State(g);
+        s.initialChargeSum = 0;
+        for (const v of g.V.keys()) {
+          const ch = 5 - g.degree(v);
+          s.chi.set(v, ch);
+          s.initialChargeSum += ch;
+        }
+        return s;
+      },
+      (state, traces) => {
+        if (!state.isWin()) return false;
+        const used = new Set(traces.map(t => t.op));
+        if (!['Cut', 'Invert', 'Discharge'].every(op => used.has(op))) return false;
+        const vals = [...state.chi.values()];
+        if (vals.some(v => v < 0)) return false;
+        const sum = vals.reduce((a, b) => a + b, 0);
+        if (Math.abs(sum - state.initialChargeSum) > 1e-9) return false;
+        const cutCount = traces.filter(t => t.op === 'Cut').length;
+        const returnCount = traces.filter(t => t.op === 'Return').length;
+        return cutCount === returnCount;
+      }
+    ));
+
 
     // --- ui/renderer.js ---
-    function bufferToHex(buf) { return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2,'0')).join(''); }
-    async function calculateStateHash(state) { const canonicalPi = Array.from(state.G.Pi.entries()).sort((a,b)=>String(a[0]).localeCompare(String(b[0]))).map(([key,arr])=>[key, [...arr].sort((u,v)=>String(u).localeCompare(String(v)))]); const canonicalEdges = state.G.edges.map(([u,v])=> { const a=String(u), b=String(v); return a<b ? [a,b] : [b,a]; }).sort((e1,e2)=> { const c = String(e1[0]).localeCompare(String(e2[0])); return c!==0 ? c : String(e1[1]).localeCompare(String(e2[1])); }); const canonicalPhi = Array.from(state.Phi.entries()).sort((a,b)=>String(a[0]).localeCompare(String(b[0]))); const canonicalChi = Array.from(state.chi?.entries() ?? []).sort((a,b)=>String(a[0]).localeCompare(String(b[0]))); const obj = { graphPi: canonicalPi, graphEdges: canonicalEdges, coloringPhi: canonicalPhi, charges: canonicalChi }; const str = JSON.stringify(obj); const data = new TextEncoder().encode(str); const hashBuf = await crypto.subtle.digest('SHA-256', data); return bufferToHex(hashBuf); }
-    let canvas, ctx, currentLevelIndex = 0, state = null, history = [], historyIndex = -1, traces = [], uiEnabled = false, selectedVertex = null, dischargeMode = { active: false, source: null };
+    let canvas, ctx, currentLevelIndex = 0, state = null, history = [], traces = [], historyIndex = -1, uiEnabled = false, selectedVertex = null, dischargeMode = { active: false, source: null }, highlightedSubgraph = new Set();
     const EL = {};
-    const opMap = { 'Init': '初始化', 'Assign': '着色', 'Cut': '切除', 'Return': '放回', 'Invert': '翻转', 'AttemptInvert': '尝试翻转', 'Discharge': '放电' };
+    const opMap = { 'Init': '初始化', 'Assign': '着色', 'Cut': '切除', 'Return': '放回', 'Invert': '翻转', 'AttemptInvert': '尝试翻转', 'Discharge': '放电', 'AttemptDischarge': '尝试放电' };
+    
+    function bufferToHex(buf) { return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2,'0')).join(''); }
+    async function calculateStateHash(state) { const canonicalPi = Array.from(state.G.Pi.entries()).sort((a,b)=>String(a[0]).localeCompare(String(b[0]))).map(([key,arr])=>[key, [...arr].sort()]); const canonicalEdges = state.G.edges.map(([u,v])=> { const a=String(u), b=String(v); return a<b ? [a,b] : [b,a]; }).sort((e1,e2)=> { const c = String(e1[0]).localeCompare(String(e2[0])); return c!==0 ? c : String(e1[1]).localeCompare(String(e2[1])); }); const canonicalPhi = Array.from(state.Phi.entries()).sort((a,b)=>String(a[0]).localeCompare(String(b[0]))); const canonicalChi = Array.from(state.chi?.entries() ?? []).sort((a,b)=>String(a[0]).localeCompare(String(b[0]))); const obj = { graphPi: canonicalPi, graphEdges: canonicalEdges, coloringPhi: canonicalPhi, charges: canonicalChi }; const str = JSON.stringify(obj); const data = new TextEncoder().encode(str); const hashBuf = await crypto.subtle.digest('SHA-256', data); return bufferToHex(hashBuf); }
+    
     function log(msg, cls='') { const d = document.createElement('div'); if (cls) d.classList.add(cls); d.textContent = msg; EL.log.appendChild(d); EL.log.scrollTop = EL.log.scrollHeight; }
-    function draw() { if (!ctx || !state) return; ctx.clearRect(0,0,canvas.width,canvas.height); ctx.strokeStyle = '#333'; ctx.lineWidth = 2.5; for (const [u,v] of state.G.edges) { const A = state.G.V.get(u), B = state.G.V.get(v); if (!A || !B) continue; ctx.beginPath(); ctx.moveTo(A.x,A.y); ctx.lineTo(B.x,B.y); ctx.stroke(); } for (const [id, vert] of state.G.V.entries()) { const isSelected = selectedVertex === id || dischargeMode.source === id; const c = state.Phi.get(id); ctx.fillStyle = (c===null ? 'var(--color-grey)' : COLORS[c]); ctx.beginPath(); ctx.arc(vert.x, vert.y, 20, 0, 2*Math.PI); ctx.fill(); ctx.lineWidth = isSelected ? 4 : 2.5; ctx.strokeStyle = isSelected ? '#000' : '#333'; ctx.stroke(); ctx.fillStyle = '#000'; ctx.font = 'bold 14px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(id, vert.x, vert.y); if(state.chi && state.chi.has(id)){ const charge = state.chi.get(id); ctx.font = '12px sans-serif'; ctx.fillStyle = charge < 0 ? 'var(--color-error)' : charge > 0 ? 'var(--color-green)' : '#000'; ctx.fillText(`χ=${charge}`, vert.x, vert.y + 25); } } }
-    function hitTest(x,y) { if (!state) return null; for (const [id, v] of state.G.V.entries()) { const dx = x-v.x, dy = y-v.y; if (dx*dx+dy*dy < 20*20) return id; } return null; }
-    function renderTrace() { EL.log.innerHTML = ''; for (let i=0; i<=historyIndex; i++) { const r = traces[i]; if (!r) continue; const argsStr = JSON.stringify(r.args); const shortHash = r.post_hash ? r.post_hash.substring(0, 8) : '--------'; const opName = opMap[r.op] || r.op; log(`[${r.idx}] 操作: ${opName} ${argsStr} ↦ 哈希: ${shortHash}...`); } }
+    
+    function draw() { 
+        if (!ctx || !state) return; 
+        ctx.clearRect(0,0,canvas.width,canvas.height); 
+        ctx.strokeStyle = '#333'; 
+        const isLargeGraph = state.G.V.size > 20;
+        ctx.lineWidth = isLargeGraph ? 1.5 : 2.5;
+
+        for (const [u,v] of state.G.edges) { 
+            const A = state.G.V.get(u), B = state.G.V.get(v); 
+            if (!A || !B) continue; 
+            ctx.beginPath(); ctx.moveTo(A.x,A.y); ctx.lineTo(B.x,B.y); ctx.stroke(); 
+        } 
+
+        const nodeRadius = isLargeGraph ? 12 : 20;
+        for (const [id, vert] of state.G.V.entries()) { 
+            const isSelected = selectedVertex === id || dischargeMode.source === id; 
+            const isCenter = levels[currentLevelIndex]?.name.includes("Birkhoff") && id === 'x'; 
+            const isHighlighted = highlightedSubgraph.has(id); 
+            ctx.fillStyle = (state.Phi.get(id)===null ? 'var(--color-grey)' : COLORS[state.Phi.get(id)]); 
+            
+            ctx.save();
+            if (state.chi && state.chi.has(id)) {
+                const charge = state.chi.get(id);
+                if (charge !== 0) {
+                    ctx.shadowBlur = 12;
+                    ctx.shadowColor = charge < 0 ? 'var(--color-error)' : 'var(--color-green)';
+                }
+            }
+            
+            ctx.beginPath(); 
+            ctx.arc(vert.x, vert.y, nodeRadius, 0, 2*Math.PI);
+            ctx.fill(); 
+            ctx.restore();
+
+            const pulse = Math.abs(Math.sin(Date.now() / 300)); 
+            ctx.lineWidth = isCenter ? 5 : (isSelected ? 4 : (isLargeGraph ? 1.5 : 2.5)); 
+            ctx.strokeStyle = isCenter ? 'var(--color-highlight)' : (isSelected? '#000':'#333'); 
+            ctx.stroke(); 
+            if(isHighlighted){ 
+                ctx.save(); 
+                ctx.strokeStyle = 'var(--color-highlight)'; 
+                ctx.lineWidth = 3 + pulse * 3; 
+                ctx.setLineDash([8, 4]); 
+                ctx.stroke(); 
+                ctx.restore(); 
+            } 
+            ctx.fillStyle = '#000'; 
+            ctx.font = `bold ${isLargeGraph ? 10 : 14}px sans-serif`;
+            ctx.textAlign = 'center'; 
+            ctx.textBaseline = 'middle'; 
+            if (isLargeGraph) {
+                ctx.fillText(id, vert.x, vert.y - 6);
+            } else {
+                ctx.fillText(id, vert.x, vert.y);
+            }
+            
+            if(state.chi && state.chi.has(id)){ 
+                const charge = state.chi.get(id); 
+                ctx.font = `${isLargeGraph ? 10 : 12}px sans-serif`;
+                ctx.fillStyle = charge < 0 ? 'var(--color-error)' : charge > 0 ? 'var(--color-green)' : '#000'; 
+                const yOffset = isLargeGraph ? (vert.y + 6) : (vert.y + 25);
+                ctx.fillText(`χ=${charge}`, vert.x, yOffset); 
+            } 
+        } 
+    }
+    
+    function hitTest(x,y) { 
+        if (!state) return null; 
+        const isLargeGraph = state.G.V.size > 20;
+        const radius = (isLargeGraph ? 12 : 20) + 2; // Add tolerance
+        for (const [id, v] of state.G.V.entries()) { 
+            const dx = x-v.x, dy = y-v.y; 
+            if (dx*dx+dy*dy < radius*radius) return id; 
+        } 
+        return null; 
+    }
+    
+    function renderTrace() {
+        EL.log.innerHTML = '';
+        for (let i = 0; i <= historyIndex && i < traces.length; i++) {
+            const r = traces[i];
+            if (!r) continue;
+            const argsStr = JSON.stringify(r.args);
+            const shortHash = r.post_hash ? r.post_hash.substring(0, 8) : '--------';
+            const opName = opMap[r.op] || r.op;
+            const logClass = r.op.startsWith('Attempt') ? 'warn' : '';
+            log(`[${r.idx}] 操作: ${opName} ${argsStr} ↦ 哈希: ${shortHash}...`, logClass);
+        }
+    }
+    
     function setUIEnabled(isEnabled) { uiEnabled = isEnabled; Object.values(EL.buttons).forEach(b => b.disabled = !isEnabled); EL.loading.style.display = isEnabled ? 'none' : 'inline'; }
-    function layoutGraph(graph, padding = 40) { if (graph.V.size === 0) return; let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity; for (const vertex of graph.V.values()) { minX = Math.min(minX, vertex.x); minY = Math.min(minY, vertex.y); maxX = Math.max(maxX, vertex.x); maxY = Math.max(maxY, vertex.y); } const originalWidth = maxX - minX; const originalHeight = maxY - minY; const canvasWidth = canvas.width - padding * 2; const canvasHeight = canvas.height - padding * 2; const scaleX = (originalWidth > 0) ? canvasWidth / originalWidth : 1; const scaleY = (originalHeight > 0) ? canvasHeight / originalHeight : 1; const scale = Math.min(scaleX, scaleY); const newWidth = originalWidth * scale; const newHeight = originalHeight * scale; const offsetX = padding + (canvasWidth - newWidth) / 2; const offsetY = padding + (canvasHeight - newHeight) / 2; for (const vertex of graph.V.values()) { const translatedX = vertex.x - minX; const translatedY = vertex.y - minY; vertex.x = translatedX * scale + offsetX; vertex.y = translatedY * scale + offsetY; } }
+    
+    function layoutGraph(graph, padding) {
+      if (!canvas || graph.V.size === 0) return;
+      const adaptivePadding = Math.min(canvas.clientWidth, canvas.clientHeight) * 0.05;
+      padding = padding || adaptivePadding;
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      for (const vertex of graph.V.values()) {
+        minX = Math.min(minX, vertex.ox); minY = Math.min(minY, vertex.oy);
+        maxX = Math.max(maxX, vertex.ox); maxY = Math.max(maxY, vertex.oy);
+      }
+      const originalWidth = maxX - minX; const originalHeight = maxY - minY;
+      const targetWidth = canvas.clientWidth - padding * 2; const targetHeight = canvas.clientHeight - padding * 2;
+      const scaleX = (originalWidth > 0) ? targetWidth / originalWidth : 1;
+      const scaleY = (originalHeight > 0) ? targetHeight / originalHeight : 1;
+      const scale = Math.min(scaleX, scaleY);
+      const newWidth = originalWidth * scale; const newHeight = originalHeight * scale;
+      const offsetX = padding + (targetWidth - newWidth) / 2;
+      const offsetY = padding + (targetHeight - newHeight) / 2;
+      for (const vertex of graph.V.values()) {
+        const translatedX = vertex.ox - minX; const translatedY = vertex.oy - minY;
+        vertex.x = translatedX * scale + offsetX; vertex.y = translatedY * scale + offsetY;
+      }
+    }
+
     const delay = ms => new Promise(res => setTimeout(res, ms));
+    
+    function resizeCanvas() { 
+        if (!canvas) return;
+        canvas.width  = canvas.clientWidth; 
+        canvas.height = canvas.clientHeight; 
+        if (state) { 
+            layoutGraph(state.G);
+            draw(); 
+        } 
+    }
+
     async function loadLevel(idx) { 
         setUIEnabled(false); 
         dischargeMode = { active: false, source: null };
+        highlightedSubgraph.clear();
         EL.buttons.discharge.classList.remove('active');
         currentLevelIndex = idx; 
         const lvl = levels[idx]; 
         EL.levelTitle.textContent = lvl.name; 
         EL.meta.innerHTML = lvl.desc.replace(/\(([^)]+)\)/g, '<strong>($1)</strong>'); 
-        EL.buttons.discharge.style.display = lvl.name.includes("放电法") ? 'inline-block' : 'none';
-        traces = []; history = []; historyIndex = -1; 
-        selectedVertex = null; 
-        EL.log.innerHTML = ''; 
+        EL.buttons.discharge.style.display = lvl.name.includes("放电法") || lvl.name.includes("终极总检") ? 'inline-block' : 'none';
+        
         const s0 = lvl.buildFn(); 
-        layoutGraph(s0.G, 40); 
+        state = s0; 
+        
+        history = [s0];
+        historyIndex = 0;
         const h0 = await calculateStateHash(s0); 
         s0.hash = h0; 
-        state = s0; 
-        history.push(s0); 
-        historyIndex = 0; 
-        traces.push({ idx:0, op:'Init', args:{}, pre_hash:null, post_hash:h0, type:'Init' }); 
-        draw(); 
+        traces = [{ idx:0, op:'Init', args:{}, pre_hash:null, post_hash:h0, type:'Init' }]; 
+        
+        selectedVertex = null; 
+        EL.log.innerHTML = ''; 
+        
+        if (lvl.name.startsWith('L8')) { ['x','a','b','c','d'].forEach(id => highlightedSubgraph.add(id)); }
+        
+        resizeCanvas();
         renderTrace(); 
         setUIEnabled(true); 
     }
+
     async function applyOp(opName, args) {
       if (!uiEnabled) return;
       setUIEnabled(false);
@@ -312,25 +675,42 @@
       let err, newState;
       switch(opName) {
         case 'Assign': [newState,err] = assignColour(state, args.v, args.c); break;
-        case 'Cut':    [newState,err] = cut(state, args.v); break;
+        case 'Cut':    [newState,err] = cut(state, args.v); if(!err && highlightedSubgraph.has(args.v)) highlightedSubgraph.delete(args.v); break;
         case 'Return': [newState,err] = ret(state); break;
         case 'Invert': [newState,err] = invert(state, args.v, args.a, args.b); break;
         case 'Discharge': [newState,err] = discharge(state, args.u, args.v); break;
       }
+      
+      history.splice(historyIndex + 1);
+      traces.splice(historyIndex + 1);
+
       if (err) {
-        if (typeof err === 'object' && (err.type === 'RuleViolation' || err.type === 'AttemptInvert')) {
-            if (err.type === 'AttemptInvert') {
-                traces.push({ idx: historyIndex, op:'AttemptInvert', args: err.args, pre_hash, post_hash: pre_hash, type:'AttemptInvert' });
-                renderTrace();
-            }
-            log(`[提示] ${err.message}`, 'warn');
-        } else {
-            log(`[错误] ${err}`, 'error');
+        const nextIdx = history.length;
+        let eventType = 'GenericError';
+        let errMessage = err.message || err;
+
+        if (typeof err === 'object' && err.type) {
+            eventType = err.type;
         }
+        
+        if (eventType === 'AttemptInvert' || eventType === 'AttemptDischarge' || eventType === 'RuleViolation') {
+            traces.push({ idx: nextIdx, op: eventType, args: args, pre_hash, post_hash: pre_hash, type: eventType });
+            history.push(state.clone());
+            historyIndex++;
+            if (eventType === 'AttemptInvert' && currentLevelIndex === 4) { // L5
+                log('❗ Kempe翻转导致顶点 1 与 3 冲突。\n'+'请用另一条链或撤销再尝试，使地图重新合法四色，亲手“修补”这个漏洞。','warn');
+            } else {
+                log(`[提示] ${errMessage}`, 'warn');
+            }
+        } else {
+             log(`[错误] ${errMessage}`, 'error');
+        }
+        
+        renderTrace();
         const lvl = levels[currentLevelIndex];
         if(lvl.goalFn(state, traces)) {
             log('✔️ 关卡完成！', 'success');
-            await delay(1500);
+            await delay(500);
             const nxt = (currentLevelIndex + 1) % levels.length;
             await loadLevel(nxt);
             return;
@@ -338,42 +718,69 @@
         setUIEnabled(true);
         return;
       }
+
       state = newState;
       const newHash = await calculateStateHash(state);
       state.hash = newHash;
-      history.splice(historyIndex+1);
       history.push(state.clone());
+      const nextIdx = history.length - 1;
+      traces.push({ idx: nextIdx, op:opName, args, pre_hash, post_hash:newHash, type:'LegalMove' });
       historyIndex++;
-      traces.splice(historyIndex);
-      traces.push({ idx: historyIndex, op:opName, args, pre_hash, post_hash:newHash, type:'LegalMove' });
+      
       draw();
       renderTrace();
       const lvl = levels[currentLevelIndex];
       if (lvl.goalFn(state, traces)) {
-        log('✔️ 关卡完成！', 'success');
-        await delay(1500);
+        if (currentLevelIndex === 6) { // L7
+            log('✔️ 关卡完成！所有电荷均已非负！这直观地证明了图中必存在度数≤5的“轻顶点”。', 'success');
+        } else {
+            log('✔️ 关卡完成！', 'success');
+        }
+        await delay(500);
         const nxt = (currentLevelIndex + 1) % levels.length;
         await loadLevel(nxt);
       } else {
         setUIEnabled(true);
       }
     }
-    function undo() { if (!uiEnabled || historyIndex <= 0) return; historyIndex--; state = history[historyIndex].clone(); selectedVertex = null; draw(); renderTrace(); }
-    function redo() { if (!uiEnabled || historyIndex >= history.length-1) return; historyIndex++; state = history[historyIndex].clone(); selectedVertex = null; draw(); renderTrace(); }
+    
+    function undo() { 
+        if (!uiEnabled || historyIndex <= 0) return; 
+        historyIndex--; 
+        state = history[historyIndex].clone(); 
+        selectedVertex = null; 
+        draw(); 
+        renderTrace(); 
+    }
+    
+    function redo() { 
+        if (!uiEnabled || historyIndex >= history.length - 1) return; 
+        historyIndex++; 
+        state = history[historyIndex].clone(); 
+        selectedVertex = null; 
+        draw(); 
+        renderTrace(); 
+    }
+    
     let invertSelection = [];
-    function showInvertModal() { EL.invertVertexId.textContent = selectedVertex; const selector = EL.invertColorSelector; selector.innerHTML = ''; invertSelection = []; EL.invertSelection.textContent = "无"; EL.btnInvertConfirm.disabled = true; COLORS.forEach((color, index) => { const btn = document.createElement('button'); btn.className = 'color-btn'; btn.style.backgroundColor = color; btn.onclick = () => { if (invertSelection.includes(index)) { invertSelection = invertSelection.filter(i => i !== index); btn.classList.remove('selected'); } else if (invertSelection.length < 2) { invertSelection.push(index); btn.classList.add('selected'); } EL.invertSelection.textContent = invertSelection.length > 0 ? invertSelection.map(i => `颜色 ${i+1}`).join(', ') : "无"; EL.btnInvertConfirm.disabled = invertSelection.length !== 2; }; selector.appendChild(btn); }); EL.invertModal.style.display = 'block'; }
+    function showInvertModal() { EL.invertVertexId.textContent = selectedVertex; const selector = EL.invertColorSelector; selector.innerHTML = ''; invertSelection = []; EL.invertSelection.textContent = "无"; EL.btnInvertConfirm.disabled = true; COLORS.forEach((color, index) => { const btn = document.createElement('button'); btn.type="button"; btn.className = 'color-btn'; btn.style.backgroundColor = color; btn.onclick = () => { if (invertSelection.includes(index)) { invertSelection = invertSelection.filter(i => i !== index); btn.classList.remove('selected'); } else if (invertSelection.length < 2) { invertSelection.push(index); btn.classList.add('selected'); } EL.invertSelection.textContent = invertSelection.length > 0 ? invertSelection.map(i => `颜色 ${i+1}`).join(', ') : "无"; EL.btnInvertConfirm.disabled = invertSelection.length !== 2; }; selector.appendChild(btn); }); EL.invertModal.style.display = 'block'; }
     function hideInvertModal() { EL.invertModal.style.display = 'none'; }
+    
     function bindUI() {
       canvas = document.getElementById('canvas'); ctx = canvas.getContext('2d');
-      const resizeCanvas = () => { canvas.width  = canvas.clientWidth; canvas.height = canvas.clientHeight; if (state) { layoutGraph(state.G, 40); draw(); } };
       window.addEventListener('resize', resizeCanvas);
       EL.log = document.getElementById('log'); EL.levelTitle = document.getElementById('levelTitle'); EL.meta = document.getElementById('meta'); EL.loading = document.getElementById('loading');
       EL.buttons = { cut: document.getElementById('btnCut'), ret: document.getElementById('btnReturn'), invert: document.getElementById('btnInvert'), discharge: document.getElementById('btnDischarge'), undo: document.getElementById('btnUndo'), redo: document.getElementById('btnRedo'), next: document.getElementById('btnNext'), };
       EL.invertModal = document.getElementById('invertModal'); EL.invertVertexId = document.getElementById('invertVertexId'); EL.invertColorSelector = document.getElementById('invertColorSelector'); EL.invertSelection = document.getElementById('invertSelection'); EL.btnInvertConfirm = document.getElementById('btnInvertConfirm'); EL.btnInvertCancel = document.getElementById('btnInvertCancel');
+      
       canvas.addEventListener('click', e => { 
         if (!uiEnabled) return; 
         const rect = canvas.getBoundingClientRect(); 
         const id = hitTest(e.clientX - rect.left, e.clientY - rect.top);
+        if (highlightedSubgraph.size > 0 && id && !highlightedSubgraph.has(id)) {
+            log('[提示] 请先处理高亮显示的可约构型。', 'warn');
+            return;
+        }
         if (dischargeMode.active) {
             if (id) {
                 if (!dischargeMode.source) {
@@ -389,25 +796,36 @@
         }
         draw(); 
       });
-      window.addEventListener('keydown', e => { if (!uiEnabled || e.metaKey || e.ctrlKey) return; if (/^[1-4]$/.test(e.key) && selectedVertex) { e.preventDefault(); applyOp('Assign', { v: selectedVertex, c: Number(e.key)-1 }); } });
-      EL.buttons.cut.addEventListener('click', ()=> { if (selectedVertex) applyOp('Cut', { v: selectedVertex }); });
-      EL.buttons.ret.addEventListener('click', ()=> applyOp('Return', {}));
-      EL.buttons.invert.addEventListener('click', () => { if (selectedVertex) showInvertModal(); });
+      
+      window.addEventListener('keydown', e => { if (!uiEnabled) return; if (/^[1-4]$/.test(e.key) && selectedVertex) { e.preventDefault(); applyOp('Assign', { v: selectedVertex, c: Number(e.key)-1 }); } });
+      EL.buttons.cut.addEventListener('click', ()=> { if (!uiEnabled || !selectedVertex) return; applyOp('Cut', { v: selectedVertex }); });
+      EL.buttons.ret.addEventListener('click', ()=> { if (!uiEnabled) return; applyOp('Return', {}); });
+      EL.buttons.invert.addEventListener('click', () => { if (!uiEnabled || !selectedVertex) return; showInvertModal(); });
       EL.buttons.discharge.addEventListener('click', () => {
+          if (!uiEnabled) return;
           dischargeMode.active = !dischargeMode.active;
           dischargeMode.source = null;
           selectedVertex = null;
           EL.buttons.discharge.classList.toggle('active', dischargeMode.active);
           draw();
       });
-      EL.buttons.undo.addEventListener('click', undo);
-      EL.buttons.redo.addEventListener('click', redo);
-      EL.buttons.next.addEventListener('click', ()=> { const nxt = (currentLevelIndex + 1) % levels.length; loadLevel(nxt); });
+      EL.buttons.undo.addEventListener('click', ()=> { if (!uiEnabled) return; undo(); });
+      EL.buttons.redo.addEventListener('click', ()=> { if (!uiEnabled) return; redo(); });
+      EL.buttons.next.addEventListener('click', ()=> { if (!uiEnabled) return; const nxt = (currentLevelIndex + 1) % levels.length; loadLevel(nxt); });
       EL.btnInvertCancel.addEventListener('click', hideInvertModal);
       EL.btnInvertConfirm.addEventListener('click', () => { if (invertSelection.length === 2) { applyOp('Invert', { v: selectedVertex, a: invertSelection[0], b: invertSelection[1] }); hideInvertModal(); } });
-      resizeCanvas();
+      
     }
-    window.addEventListener('load', ()=>{ bindUI(); loadLevel(0); });
+    
+    window.addEventListener('load', ()=>{ 
+        bindUI(); 
+        loadLevel(0); 
+        function animate() {
+            if (highlightedSubgraph.size > 0) draw();
+            requestAnimationFrame(animate);
+        }
+        animate();
+    });
   </script>
 </body>
 </html>
